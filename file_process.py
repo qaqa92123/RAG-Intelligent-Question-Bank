@@ -1,0 +1,55 @@
+import os
+
+# 预先配置 NLTK，防止 unstructured 自动下载
+import nltk
+# 确保 NLTK 数据路径正确
+nltk_data_dir = os.path.expanduser("~/nltk_data")
+if nltk_data_dir not in nltk.data.path:
+    nltk.data.path.insert(0, nltk_data_dir)
+
+# 禁用 unstructured 的自动下载功能
+try:
+    from unstructured.nlp import tokenize
+    # 替换下载函数为空函数，阻止自动下载
+    tokenize.download_nltk_packages = lambda: None
+    tokenize._download_nltk_packages_if_not_present = lambda: None
+except ImportError:
+    pass
+
+from langchain_community.document_loaders import TextLoader, UnstructuredWordDocumentLoader, PyPDFLoader
+
+from text_utils.text_split import RagTextSplitter
+
+
+class RagFileProcessor(object):
+    def __init__(self, chunk_size: int = 512):
+        self.text_splitter = RagTextSplitter(chunk_size=chunk_size)
+
+    def file_process(self, file_path: str):
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"文件 {file_path} 不存在！")
+
+        if file_path.lower().endswith(".txt"):
+            txt_loader = TextLoader(file_path, autodetect_encoding=True)
+            txt_docs = txt_loader.load_and_split(text_splitter=self.text_splitter)
+            return txt_docs
+        elif file_path.lower().endswith(".docx"):
+            docx_loader = UnstructuredWordDocumentLoader(file_path, mode="single")
+            docx_docs = docx_loader.load_and_split(text_splitter=self.text_splitter)
+            return docx_docs
+        elif file_path.lower().endswith(".pdf"):
+            pdf_loader = PyPDFLoader(file_path)
+            pdf_docs = pdf_loader.load_and_split(text_splitter=self.text_splitter)
+            return pdf_docs
+        else:
+            raise TypeError("文件类型不支持，目前仅支持：txt/docx/pdf")
+
+    def get_data(self, file_path: str):
+        docs = self.file_process(file_path)
+        passage_docs = [doc.page_content.strip() for doc in docs]
+        file_name = {"source": os.path.basename(docs[0].metadata['source'])}
+        ids = [str(i) for i in range(len(passage_docs))]  # 确保每个文档有唯一的 ID
+        meta_datas = [file_name for _ in range(len(passage_docs))]  # 定义元数据信息，包括文件名等
+        dict_data = {"texts": passage_docs, "ids": ids, "meta_datas": meta_datas}
+        return dict_data
+

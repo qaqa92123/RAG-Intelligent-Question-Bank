@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>综合题生成模块</title>
+  <link rel="stylesheet" href="/assets/css/graindashboard.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+  <style>
+    body{padding:30px;background:#f8f9fa}
+    .module-card{border:none;border-radius:18px;box-shadow:0 18px 45px rgba(15,23,42,.08)}
+    .meta-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px}
+    .meta-item{padding:14px 16px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0}
+    .meta-label{display:block;font-size:12px;color:#64748b;margin-bottom:6px}
+    .meta-value{font-size:16px;font-weight:600;color:#0f172a}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <div>
+        <h1 class="mb-1">综合题生成模块</h1>
+        <p class="text-muted mb-0">先选择题型模块，再进入对应的生成页面。</p>
+      </div>
+      <div>
+        <span class="me-3">欢迎，<strong>{{ user.username }}</strong></span>
+        <a href="/" class="btn btn-outline-secondary">返回首页</a>
+      </div>
+    </div>
+
+    <div class="row g-4">
+      {% for module in modules %}
+      <div class="col-12">
+        <div class="card module-card">
+          <div class="card-body p-4 p-lg-5">
+            <div class="d-flex flex-column flex-lg-row justify-content-between gap-4 align-items-lg-start">
+              <div class="flex-grow-1">
+                <h3 class="mb-2">{{ module.name }}</h3>
+                <p class="text-muted mb-4">{{ module.summary }}</p>
+
+                <div class="meta-grid mb-3">
+                  <div class="meta-item">
+                    <span class="meta-label">分值</span>
+                    <span class="meta-value">{{ module.score }}</span>
+                  </div>
+                  <div class="meta-item">
+                    <span class="meta-label">所有问题数量</span>
+                    <span class="meta-value">{{ module.question_total }}</span>
+                  </div>
+                  <div class="meta-item">
+                    <span class="meta-label">填空数量</span>
+                    <span class="meta-value">{{ module.blank_total }}</span>
+                  </div>
+                  <div class="meta-item">
+                    <span class="meta-label">选择数量</span>
+                    <span class="meta-value">{{ module.choice_total }}</span>
+                  </div>
+                  <div class="meta-item">
+                    <span class="meta-label">题型</span>
+                    <span class="meta-value">{{ module.question_type }}</span>
+                  </div>
+                </div>
+
+              </div>
+
+              <div class="d-flex align-items-center">
+                <a href="/short-answer/{{ module.slug }}" class="btn btn-primary btn-lg">进入模块</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</body>
+</html>

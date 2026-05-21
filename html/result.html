@@ -1,0 +1,784 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>提交结果</title>
+  <link rel="stylesheet" href="/assets/css/graindashboard.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+  <style>
+    body{padding:30px;background:#f8f9fa}
+    .question-box {
+      position: relative;
+      border: 2px solid transparent;
+      padding: 15px;
+      margin-bottom: 15px;
+      border-radius: 8px;
+      background: white;
+      transition: all 0.3s;
+    }
+    .question-box.edit-mode {
+      border-color: #0d6efd;
+    }
+    .delete-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: #dc3545;
+      color: white;
+      border: none;
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+      display: none;
+      z-index: 10;
+    }
+    .ai-generate-btn {
+      position: absolute;
+      top: 10px;
+      right: 50px;
+      padding: 5px 12px;
+      border-radius: 5px;
+      background: #198754;
+      color: white;
+      border: none;
+      font-size: 12px;
+      cursor: pointer;
+      display: none;
+      z-index: 10;
+      white-space: nowrap;
+    }
+    .edit-mode .delete-btn,
+    .edit-mode .ai-generate-btn {
+      display: block;
+    }
+    .delete-btn:hover {
+      background: #c82333;
+    }
+    .ai-generate-btn:hover {
+      background: #157347;
+    }
+    .placeholder-box {
+      border: 2px dashed #6c757d;
+      padding: 30px;
+      margin-bottom: 15px;
+      border-radius: 8px;
+      text-align: center;
+      color: #6c757d;
+      background: #f8f9fa;
+    }
+    .placeholder-box h5 {
+      margin: 0;
+      color: #dc3545;
+    }
+    .ai-preview-box {
+      border: 2px solid #198754;
+      padding: 20px;
+      margin: 15px 0;
+      border-radius: 8px;
+      background: #d1e7dd;
+    }
+    .ai-preview-box h6 {
+      color: #0f5132;
+      margin-bottom: 15px;
+    }
+    .context-preview {
+      background: white;
+      padding: 10px;
+      border-radius: 5px;
+      margin: 10px 0;
+      max-height: 200px;
+      overflow-y: auto;
+      font-size: 14px;
+      color: #666;
+    }
+    .ai-badge {
+      display: inline-block;
+      margin-left: 8px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #0d6efd;
+      color: white;
+      font-size: 12px;
+      font-weight: 600;
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+  
+  <!-- AI 生成对话框 -->
+  <div class="modal fade" id="aiGenerateModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">AI 生成类似题目</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">原题信息</label>
+            <div class="card">
+              <div class="card-body" id="originalQuestionPreview"></div>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label for="userRequirement" class="form-label">您的需求（可选）</label>
+            <textarea class="form-control" id="userRequirement" rows="3" 
+              placeholder="例如：改变题目情境、增加难度、使用不同的例子等..."></textarea>
+          </div>
+          <div id="aiGenerateStatus" style="display: none;">
+            <div class="spinner-border spinner-border-sm text-success" role="status"></div>
+            <span class="ms-2">AI 正在生成题目...</span>
+          </div>
+          <div id="aiGeneratedResult" style="display: none;">
+            <h6 class="text-success mt-3">✓ 生成成功</h6>
+            <div class="ai-preview-box">
+              <h6>生成的新题目（可编辑）</h6>
+              <div class="row g-2">
+                <div class="col-12">
+                  <label class="form-label">大题干</label>
+                  <textarea class="form-control" id="aiEditBigStem" rows="2"></textarea>
+                </div>
+                <div class="col-12">
+                  <label class="form-label">题干</label>
+                  <textarea class="form-control" id="aiEditStem" rows="3"></textarea>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">答案</label>
+                  <input class="form-control" id="aiEditAnswer">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">难度</label>
+                  <input class="form-control" id="aiEditLevel">
+                </div>
+                <div class="col-12">
+                  <label class="form-label">选项（每行一个）</label>
+                  <textarea class="form-control" id="aiEditOptions" rows="5"></textarea>
+                </div>
+                <div class="col-12">
+                  <label class="form-label">解析</label>
+                  <textarea class="form-control" id="aiEditAnalysis" rows="4"></textarea>
+                </div>
+              </div>
+            </div>
+            <div class="context-preview">
+              <strong>知识库检索到的相关内容：</strong>
+              <div id="contextPreview"></div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="button" class="btn btn-success" id="generateAiBtn" onclick="generateSimilarQuestion()">
+            生成题目
+          </button>
+          <button type="button" class="btn btn-primary" id="replaceQuestionBtn" style="display:none;" onclick="replaceWithAiQuestion()">
+            替换原题
+          </button>
+          <button type="button" class="btn btn-outline-primary" id="saveToBankBtn" style="display:none;" onclick="saveAiQuestionToBank()">
+            保存至题库
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="container">
+    <!-- 页头导航 -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h1 class="mb-0">提交的参数</h1>
+      <div>
+        <a href="/agent-workbench" class="btn btn-info me-2">智能体工作台</a>
+        <a href="/question-bank" class="btn btn-outline-warning me-2">题库管理</a>
+        <a href="/knowledge-base" class="btn btn-outline-primary">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-database" viewBox="0 0 16 16">
+            <path d="M4.318 2.687C6.068 1.582 7.934 1 8 1s1.932.582 3.682 1.687C13.432 3.794 14 4.862 14 6s-.568 2.206-2.318 3.313C9.932 10.418 8.066 11 8 11s-1.932-.582-3.682-1.687C2.568 8.206 2 7.138 2 6s.568-2.206 2.318-3.313ZM14 8.222v1.556C14 11.862 11.314 13 8 13s-6-1.138-6-3.222V8.222c.91.78 2.227 1.45 3.796 1.91C7.15 10.582 7.592 10.6 8 10.6c.408 0 .85-.018 2.204-.468C11.773 9.672 13.09 9.002 14 8.222Zm0 3.556V13c0 2.086-2.686 3.222-6 3.222s-6-1.136-6-3.222v-1.222c.91.78 2.227 1.45 3.796 1.91 1.354.45 1.796.468 2.204.468.408 0 .85-.018 2.204-.468 1.569-.46 2.886-1.13 3.796-1.91Z"/>
+          </svg>
+          知识库管理
+        </a>
+      </div>
+    </div>
+    
+    <ul class="list-group">
+      <li class="list-group-item"><strong>试卷标题:</strong> {{ data.title }}</li>
+      <li class="list-group-item"><strong>题目数量:</strong> {{ data.num_questions }}</li>
+      <li class="list-group-item"><strong>知识点:</strong> {{ data.kps_display if data.kps_display else '未限制' }}</li>
+      <li class="list-group-item"><strong>难度占比 (难,中,易):</strong> {{ data.difficulty }}</li>
+      <li class="list-group-item"><strong>题型占比 (单选,多选):</strong> {{ data.type_ratio if data.type_ratio else '单选:100,多选:0' }}</li>
+      <li class="list-group-item"><strong>显示难度:</strong> {{ '是' if data.show_difficulty else '否' }}</li>
+      <li class="list-group-item"><strong>显示知识点:</strong> {{ '是' if data.show_knowledge else '否' }}</li>
+      <li class="list-group-item"><strong>显示答案:</strong> {{ '是' if data.show_answer else '否' }}</li>
+      <li class="list-group-item"><strong>显示解析:</strong> {{ '是' if data.show_analysis else '否' }}</li>
+    </ul>
+    {% if data.current_stats %}
+      <div class="alert alert-success mt-3 mb-0 py-2">
+        <div class="text-success"><strong>当前试卷统计:</strong> {{ data.current_stats.total }}</div>
+        <div class="text-success">题型实际分布: {{ data.current_stats.type }}</div>
+        <div class="text-success">难度实际分布: {{ data.current_stats.difficulty }}</div>
+        <div class="text-success">当前覆盖知识点: {{ data.current_stats.knowledge }}</div>
+      </div>
+    {% endif %}
+    
+    <!-- 试卷预览区域 -->
+    <div class="d-flex justify-content-between align-items-center mt-4 mb-3">
+      <h2 class="mb-0">试卷预览</h2>
+      {% if data.selection and data.selection|length > 0 %}
+        <button id="editBtn" class="btn btn-primary" onclick="toggleEditMode()">编辑</button>
+        <button id="saveBtn" class="btn btn-success" onclick="saveChanges()" style="display:none;">保存</button>
+      {% endif %}
+    </div>
+    <div class="card mt-2">
+      <div class="card-body" id="previewContainer">
+        <!-- 预览将由前端 JS 按分区渲染：一、单选题；二、多选题 -->
+      </div>
+    </div>
+    <div class="mt-3">
+      {% if data.out_path %}
+        <a href="{{ data.out_path }}" id="downloadBtn" class="btn btn-success me-2" target="_blank">下载生成的试卷</a>
+      {% endif %}
+      <a href="/" class="btn btn-secondary">返回</a>
+    </div>
+  </div>
+  
+  <script>
+    // 存储原始题目数据和编辑状态（支持单选/多选分区）
+    let questionDataSingle = {{ data.selection_single | tojson if data.selection_single else (data.selection | tojson if data.selection else '[]') }};
+    let questionDataMulti = {{ data.selection_multi | tojson if data.selection_multi else '[]' }};
+    const multiExists = {{ 'true' if data.multi_exists else 'false' }};
+    // 原始分区总数（用于按比例回溯分配缺口）
+    const originalSingleTotal = {{ data.selection_single | length if data.selection_single else (data.selection | length if data.selection else 0) }};
+    const originalMultiTotal = {{ data.selection_multi | length if data.selection_multi else 0 }};
+    let isEditMode = false;
+    let deletedSingleIndices = new Set();
+    let deletedMultiIndices = new Set();
+    const totalQuestions = {{ data.num_questions }};
+    const showDifficulty = {{ 'true' if data.show_difficulty else 'false' }};
+    const showKnowledge = {{ 'true' if data.show_knowledge else 'false' }};
+    const showAnswer = {{ 'true' if data.show_answer else 'false' }};
+    const showAnalysis = {{ 'true' if data.show_analysis else 'false' }};
+
+    // 存储所有已删除题目的唯一标识（用于排除）
+    let excludedQuestions = new Set();
+
+    // 生成题目唯一标识（基于题干+选项）
+    function getQuestionId(question) {
+      const stem = question.stem || '';
+      const options = (question.options || []).join('|');
+      return `${stem}_${options}`;
+    }
+
+    // 清理选项文本：移除可能已有的开头标签如 "A. ", "B、" 等（支持重复前缀）
+    function cleanOption(opt) {
+      if (!opt || typeof opt !== 'string') return opt;
+      // 去掉开头重复的字母标签，例如 "A. A. 文本" -> "文本"
+      return opt.replace(/^(?:\s*[A-Za-z]\s*[\.、:：\)]\s*)+/, '').trim();
+    }
+
+    // 初始化时，如果有题目数据，记录其 ID
+    [questionDataSingle, questionDataMulti].forEach(arr => {
+      if (arr && arr.length > 0) {
+        arr.forEach(q => { q._id = getQuestionId(q); });
+      }
+    });
+
+    function toggleEditMode() {
+      const hasAny = (questionDataSingle && questionDataSingle.length > 0) || (questionDataMulti && questionDataMulti.length > 0);
+      if (!hasAny) { alert('当前没有题目可编辑'); return; }
+      isEditMode = !isEditMode;
+      const editBtn = document.getElementById('editBtn');
+      const saveBtn = document.getElementById('saveBtn');
+      const questionBoxes = document.querySelectorAll('.question-box');
+      if (isEditMode) {
+        editBtn.style.display = 'none'; saveBtn.style.display = 'block'; questionBoxes.forEach(box => box.classList.add('edit-mode'));
+      } else { editBtn.style.display = 'block'; saveBtn.style.display = 'none'; questionBoxes.forEach(box => box.classList.remove('edit-mode')); }
+    }
+
+    function deleteQuestion(section, index) {
+      if (!isEditMode) return;
+      if (!confirm('确定要删除这道题吗？')) return;
+      let q = null;
+      if (section === 'single') {
+        q = questionDataSingle[index];
+        if (q) { excludedQuestions.add(q._id || getQuestionId(q)); deletedSingleIndices.add(index); }
+      } else {
+        q = questionDataMulti[index];
+        if (q) { excludedQuestions.add(q._id || getQuestionId(q)); deletedMultiIndices.add(index); }
+      }
+      renderPreview();
+    }
+
+    function renderSection(arr, deletedSet, sectionName) {
+      const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      let html = '';
+      let num = 1;
+      arr.forEach((q, idx) => {
+        if (deletedSet.has(idx)) return;
+        html += `<div class="question-box ${isEditMode ? 'edit-mode' : ''}" data-section="${sectionName}" data-index="${idx}">`;
+        html += `<button class="delete-btn" onclick="deleteQuestion('${sectionName}', ${idx})" title="删除此题">×</button>`;
+        html += `<button class="ai-generate-btn" onclick="openAiGenerateModal('${sectionName}', ${idx})" title="AI生成相似题目">AI生成相似题目</button>`;
+        const aiBadge = (q.ai_generated || q._ai_generated) ? '<span class="ai-badge">AI生成</span>' : '';
+        if (q.big_stem) html += `<h5>${num}、 ${q.big_stem}${aiBadge}</h5>`; else html += `<h5>${num}、${aiBadge}</h5>`;
+        let details = q.stem || '';
+        if (showDifficulty && q.level) details += ` （难度：${q.level}）`;
+        if (showKnowledge) details += ` （知识点：${q.kp_name || q.kp}）`;
+        html += `<p>${details}</p>`;
+        html += '<ul>';
+        (q.options || []).forEach((opt, i) => { const cleanOpt = cleanOption(opt); html += `<li>${letters[i]}. ${cleanOpt}</li>`; });
+        html += '</ul>';
+        if (showAnswer && q.answer) html += `<p><strong>答案：</strong> ${cleanOption(q.answer)}</p>`;
+        if (showAnalysis && q.analysis) html += `<p><strong>解析：</strong> ${q.analysis}</p>`;
+        html += '</div>';
+        num++;
+      });
+      return html;
+    }
+
+    function renderPreview() {
+      const container = document.getElementById('previewContainer');
+      let html = '';
+
+      // 单选区
+      if (questionDataSingle && questionDataSingle.length > 0) {
+        html += `<h5>一、单选题</h5>`;
+        html += renderSection(questionDataSingle, deletedSingleIndices, 'single');
+      }
+
+      // 多选区
+      if (multiExists && questionDataMulti && questionDataMulti.length > 0) {
+        html += `<h5 class="mt-4">二、多选题</h5>`;
+        html += renderSection(questionDataMulti, deletedMultiIndices, 'multi');
+      }
+
+      // 计算当前剩余题数（合并）
+      const remaining = (questionDataSingle ? questionDataSingle.length - deletedSingleIndices.size : 0) + (questionDataMulti ? questionDataMulti.length - deletedMultiIndices.size : 0);
+      const missingCount = totalQuestions - remaining;
+      if (missingCount > 0) {
+        html += `
+          <div class="placeholder-box">
+            <h5>⚠ 还差 ${missingCount} 道题</h5>
+            <p class="mb-2">题库中暂无符合条件的题目可补充</p>
+            <button class="btn btn-warning" onclick="retryBacktrack()" id="retryBtn">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-clockwise" viewBox="0 0 16 16" style="margin-right: 5px;">
+                <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2z"/>
+                <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466"/>
+              </svg>
+              再次回溯组题
+            </button>
+            <div id="retryStatus" style="margin-top: 10px; display: none;">
+              <div class="spinner-border spinner-border-sm text-warning" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+              <span class="ms-2">正在重新组题...</span>
+            </div>
+          </div>
+        `;
+      }
+
+      container.innerHTML = html;
+    }
+
+    function saveChanges() {
+      if (!isEditMode) return;
+      const remainingSingle = (questionDataSingle || []).filter((_, i) => !deletedSingleIndices.has(i));
+      const remainingMulti = (questionDataMulti || []).filter((_, i) => !deletedMultiIndices.has(i));
+      const merged = [...remainingSingle, ...remainingMulti];
+
+      fetch('/save-edited-paper', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          selection: merged,
+          selection_single: remainingSingle,
+          selection_multi: remainingMulti,
+          multi_exists: multiExists,
+          title: '{{ data.title }}',
+          show_difficulty: showDifficulty,
+          show_knowledge: showKnowledge,
+          show_answer: showAnswer,
+          show_analysis: showAnalysis
+        })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          alert('保存成功！');
+          // 更新下载链接
+          document.getElementById('downloadBtn').href = data.out_path;
+          // 退出编辑模式
+          toggleEditMode();
+        } else {
+          alert('保存失败：' + data.message);
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert('保存失败，请重试');
+      });
+    }
+    
+    function retryBacktrack() {
+      const retryBtn = document.getElementById('retryBtn');
+      const retryStatus = document.getElementById('retryStatus');
+      
+      if (retryBtn) retryBtn.disabled = true;
+      if (retryStatus) retryStatus.style.display = 'block';
+      
+      // 计算还需要多少题目（合并单/多），并按原始分区比例分配缺口
+      const remainingSingle = (questionDataSingle || []).filter((_, i) => !deletedSingleIndices.has(i));
+      const remainingMulti = (questionDataMulti || []).filter((_, i) => !deletedMultiIndices.has(i));
+      const mergedRemaining = [...remainingSingle, ...remainingMulti];
+      const neededCount = totalQuestions - mergedRemaining.length;
+
+      // 按原始分区比例计算需要补充的单选/多选数量
+      let desired_multi = 0;
+      const origTotal = (originalSingleTotal || 0) + (originalMultiTotal || 0);
+      if (multiExists && origTotal > 0) {
+        desired_multi = Math.round(neededCount * ((originalMultiTotal || 0) / origTotal));
+      }
+      if (desired_multi < 0) desired_multi = 0;
+      if (desired_multi > neededCount) desired_multi = neededCount;
+      const desired_single = Math.max(0, neededCount - desired_multi);
+      
+      // 准备排除列表（已删除题目的 ID）
+      const excludedIds = Array.from(excludedQuestions);
+      
+      fetch('/retry-backtrack', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: '{{ data.title }}',
+          num_questions: neededCount,
+          desired_single: desired_single,
+          desired_multi: desired_multi,
+          kps: '{{ data.kps }}',
+          difficulty: '{{ data.difficulty }}',
+          show_difficulty: showDifficulty,
+          show_knowledge: showKnowledge,
+          show_answer: showAnswer,
+          show_analysis: showAnalysis,
+          excluded_ids: excludedIds,
+          existing_questions_single: remainingSingle,
+          existing_questions_multi: remainingMulti
+        })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (retryBtn) retryBtn.disabled = false;
+        if (retryStatus) retryStatus.style.display = 'none';
+        
+        if (data.success) {
+          const addedSingle = data.new_single || [];
+          const addedMulti = data.new_multi || [];
+
+          // 为新题设置 _id 并追加到对应分区
+          addedSingle.forEach(q => { q._id = getQuestionId(q); if(q.options) q.options = q.options.map(cleanOption); if(q.answer) q.answer = cleanOption(q.answer); });
+          addedMulti.forEach(q => { q._id = getQuestionId(q); if(q.options) q.options = q.options.map(cleanOption); if(q.answer) q.answer = cleanOption(q.answer); });
+
+          questionDataSingle = [...remainingSingle, ...addedSingle];
+          questionDataMulti = [...remainingMulti, ...addedMulti];
+
+          // 清除删除标记
+          deletedSingleIndices.clear();
+          deletedMultiIndices.clear();
+
+          renderPreview();
+
+          const addedCount = (addedSingle.length + addedMulti.length);
+          alert(`成功补充了 ${addedCount} 道题！`);
+          
+          // 如果有新的下载路径，更新下载按钮
+          if (data.out_path) {
+            const downloadBtn = document.getElementById('downloadBtn');
+            if (downloadBtn) {
+              downloadBtn.href = data.out_path;
+            }
+          }
+        } else {
+          alert(data.message || '未找到新的符合条件的题目');
+        }
+      })
+      .catch(error => {
+        if (retryBtn) retryBtn.disabled = false;
+        if (retryStatus) retryStatus.style.display = 'none';
+        console.error('Error:', error);
+        alert('回溯失败，请重试');
+      });
+    }
+    
+    // AI 生成相关变量
+    let currentAiIndex = -1;
+    let currentAiSection = null;
+    let aiGeneratedQuestion = null;
+    let aiModal = null;
+    
+    function openAiGenerateModal(section, index) {
+      const dataArray = section === 'single' ? questionDataSingle : questionDataMulti;
+      if (!isEditMode || !dataArray || !dataArray[index]) return;
+      
+      // 如果 modal 未初始化，现在初始化
+      if (!aiModal) {
+        const modalElement = document.getElementById('aiGenerateModal');
+        if (modalElement) { aiModal = new bootstrap.Modal(modalElement); }
+      }
+      
+      currentAiSection = section;
+      currentAiIndex = index;
+      const question = dataArray[index];
+      const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      
+      // 显示原题信息
+      let previewHtml = '<div>';
+      if (question.big_stem) {
+        previewHtml += `<p><strong>大题干：</strong>${question.big_stem}</p>`;
+      }
+      if (question.stem) {
+        previewHtml += `<p><strong>题干：</strong>${question.stem}</p>`;
+      }
+      previewHtml += '<p><strong>选项：</strong></p><ul>';
+      (question.options || []).forEach((opt, i) => {
+        const clean = cleanOption(opt);
+        previewHtml += `<li>${letters[i]}. ${clean}</li>`;
+      });
+      previewHtml += '</ul>';
+      if (question.answer) {
+        previewHtml += `<p><strong>答案：</strong>${question.answer}</p>`;
+      }
+      if (question.analysis) {
+        previewHtml += `<p><strong>解析：</strong>${question.analysis}</p>`;
+      }
+      if (question.kp_name || question.kp) {
+        previewHtml += `<p><strong>知识点：</strong>${question.kp_name || question.kp}</p>`;
+      }
+      if (question.level) {
+        previewHtml += `<p><strong>难度：</strong>${question.level}</p>`;
+      }
+      previewHtml += '</div>';
+      
+      document.getElementById('originalQuestionPreview').innerHTML = previewHtml;
+      document.getElementById('userRequirement').value = '';
+      document.getElementById('aiGenerateStatus').style.display = 'none';
+      document.getElementById('aiGeneratedResult').style.display = 'none';
+      document.getElementById('generateAiBtn').style.display = 'block';
+      document.getElementById('replaceQuestionBtn').style.display = 'none';
+      document.getElementById('saveToBankBtn').style.display = 'none';
+      document.getElementById('saveToBankBtn').disabled = false;
+      document.getElementById('saveToBankBtn').textContent = '保存至题库';
+      
+      // 显示 modal
+      if (aiModal) {
+        aiModal.show();
+      } else {
+        alert('模态框初始化失败，请刷新页面后重试');
+      }
+    }
+    
+    function generateSimilarQuestion() {
+      const dataArray = currentAiSection === 'single' ? questionDataSingle : questionDataMulti;
+      if (currentAiIndex === -1 || !dataArray || !dataArray[currentAiIndex]) return;
+      
+      const question = dataArray[currentAiIndex];
+      const userRequirement = document.getElementById('userRequirement').value || '无特殊要求';
+      
+      // 显示加载状态
+      document.getElementById('aiGenerateStatus').style.display = 'block';
+      document.getElementById('aiGeneratedResult').style.display = 'none';
+      document.getElementById('generateAiBtn').disabled = true;
+      
+      fetch('/generate-similar-question', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          original_question: {
+            stem: question.stem,
+            big_stem: question.big_stem || '',
+            options: question.options || [],
+            answer: question.answer || '',
+            analysis: question.analysis || '',
+            knowledge_point: question.kp_name || question.kp || '',
+            difficulty: question.level || '中'
+          },
+          user_requirement: userRequirement
+        })
+      })
+      .then(response => response.json())
+      .then(data => {
+        document.getElementById('aiGenerateStatus').style.display = 'none';
+        document.getElementById('generateAiBtn').disabled = false;
+        
+        if (data.success && data.new_question) {
+          aiGeneratedQuestion = data.new_question;
+          populateAiQuestionEditor(aiGeneratedQuestion);
+          
+          // 显示检索到的知识库内容
+          let contextHtml = '';
+          if (data.context_snippets && data.context_snippets.length > 0) {
+            data.context_snippets.forEach((snippet, i) => {
+              contextHtml += `<p><strong>片段 ${i+1}:</strong> ${snippet}</p>`;
+            });
+          } else {
+            contextHtml = '<p class="text-muted">未检索到相关知识库内容</p>';
+          }
+          document.getElementById('contextPreview').innerHTML = contextHtml;
+          
+          document.getElementById('aiGeneratedResult').style.display = 'block';
+          document.getElementById('generateAiBtn').style.display = 'none';
+          document.getElementById('replaceQuestionBtn').style.display = 'block';
+          document.getElementById('saveToBankBtn').style.display = 'block';
+        } else {
+          alert('生成失败：' + (data.message || '未知错误'));
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        document.getElementById('aiGenerateStatus').style.display = 'none';
+        document.getElementById('generateAiBtn').disabled = false;
+        alert('生成失败，请重试');
+      });
+    }
+
+    function populateAiQuestionEditor(question) {
+      document.getElementById('aiEditBigStem').value = question.big_stem || '';
+      document.getElementById('aiEditStem').value = question.stem || '';
+      document.getElementById('aiEditOptions').value = (question.options || []).map(cleanOption).join('\n');
+      document.getElementById('aiEditAnswer').value = question.answer || '';
+      document.getElementById('aiEditAnalysis').value = question.analysis || '';
+      document.getElementById('aiEditLevel').value = question.level || '';
+    }
+
+    function collectAiEditedQuestion() {
+      if (!aiGeneratedQuestion) return null;
+      const edited = {
+        ...aiGeneratedQuestion,
+        big_stem: document.getElementById('aiEditBigStem').value.trim(),
+        stem: document.getElementById('aiEditStem').value.trim(),
+        options: document.getElementById('aiEditOptions').value
+          .split('\n')
+          .map(opt => cleanOption(opt.trim()))
+          .filter(Boolean),
+        answer: cleanOption(document.getElementById('aiEditAnswer').value.trim()),
+        analysis: document.getElementById('aiEditAnalysis').value.trim(),
+        level: document.getElementById('aiEditLevel').value.trim()
+      };
+      aiGeneratedQuestion = edited;
+      return edited;
+    }
+    
+    function replaceWithAiQuestion() {
+      const editedQuestion = collectAiEditedQuestion();
+      if (currentAiIndex === -1 || !editedQuestion) return;
+      if (!editedQuestion.big_stem && !editedQuestion.stem) {
+        alert('大题干和题干不能同时为空');
+        return;
+      }
+      if (!editedQuestion.options || editedQuestion.options.length === 0) {
+        alert('请至少保留一个选项');
+        return;
+      }
+      if (!confirm('确定要用 AI 生成的题目替换原题吗？')) return;
+
+      const dataArray = currentAiSection === 'single' ? questionDataSingle : questionDataMulti;
+      const original = dataArray[currentAiIndex];
+      const originalId = original ? original._id : null;
+      const originalKp = original ? original.kp : null;
+      const originalKpName = original ? original.kp_name : null;
+      const originalLevel = original ? original.level : null;
+
+      // 清理 AI 生成题的选项与答案，防止重复字母标签
+      if (editedQuestion.options && Array.isArray(editedQuestion.options)) {
+        editedQuestion.options = editedQuestion.options.map(opt => cleanOption(opt));
+      }
+      if (editedQuestion.answer) {
+        editedQuestion.answer = cleanOption(editedQuestion.answer);
+      }
+
+      dataArray[currentAiIndex] = {
+        ...editedQuestion,
+        _id: originalId || getQuestionId(editedQuestion),
+        kp: originalKp,
+        kp_name: originalKpName,
+        level: editedQuestion.level || originalLevel,
+        _ai_generated: true
+      };
+
+      renderPreview();
+      aiModal.hide();
+      currentAiIndex = -1; currentAiSection = null; aiGeneratedQuestion = null;
+    }
+
+    function saveAiQuestionToBank() {
+      const editedQuestion = collectAiEditedQuestion();
+      if (!editedQuestion || currentAiIndex === -1) return;
+      if (!editedQuestion.big_stem && !editedQuestion.stem) {
+        alert('大题干和题干不能同时为空');
+        return;
+      }
+      if (!editedQuestion.options || editedQuestion.options.length === 0) {
+        alert('请至少保留一个选项');
+        return;
+      }
+
+      const dataArray = currentAiSection === 'single' ? questionDataSingle : questionDataMulti;
+      const original = dataArray && dataArray[currentAiIndex] ? dataArray[currentAiIndex] : null;
+      const saveBtn = document.getElementById('saveToBankBtn');
+      if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.textContent = '保存中...';
+      }
+
+      fetch('/api/question-bank/questions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          question_type: currentAiSection === 'multi' ? '多选' : '单选',
+          big_stem: editedQuestion.big_stem || '',
+          stem: editedQuestion.stem || '',
+          options: editedQuestion.options || [],
+          answer: editedQuestion.answer || '',
+          analysis: editedQuestion.analysis || '',
+          difficulty: editedQuestion.level || (original ? original.level : '') || '',
+          knowledge_point_code: (original && original.kp) || '',
+          knowledge_point_name: (original && (original.kp_name || original.kp)) || ''
+        })
+      })
+      .then(response => response.json().then(data => ({ status: response.status, data })))
+      .then(({ status, data }) => {
+        if (saveBtn) {
+          saveBtn.disabled = false;
+          saveBtn.textContent = '保存至题库';
+        }
+        if (status >= 200 && status < 300 && data.success) {
+          aiGeneratedQuestion.ai_generated = true;
+          aiGeneratedQuestion._ai_generated = true;
+          alert('已保存至题库');
+          return;
+        }
+        alert(data.message || '保存失败');
+      })
+      .catch(error => {
+        if (saveBtn) {
+          saveBtn.disabled = false;
+          saveBtn.textContent = '保存至题库';
+        }
+        console.error('Error:', error);
+        alert('保存失败，请重试');
+      });
+    }
+    
+    // 页面加载完成后渲染预览
+    document.addEventListener('DOMContentLoaded', () => {
+      renderPreview();
+    });
+  </script>
+  
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

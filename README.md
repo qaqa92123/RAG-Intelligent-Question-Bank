@@ -1,0 +1,104 @@
+# Knowledge_QA_RAG
+## Overview
+本系统基于Knowledge_QA_RAG这个 RAG 的知识库问答系统进行的二次开发，采用前后端分离的架构设计，融合了多种技术和方法。原项目具体详情可参考，本项目的配置方法与原项目基本一致：[https://blog.csdn.net/weixin_47936614/article/details/143932997](https://blog.csdn.net/weixin_47936614/article/details/143932997)
+
+## Milvus Installation
+本系统是在 Windows 10/11 上进行部署和运行的，关于milvus向量数据库的安装和启动可以参考以下步骤：
+
+1.勾选 `适用于Linux的Windows子系统` 和 `虚拟机平台` 
+
+![09afdd4c8869124fd606715f57cae4cb](https://github.com/user-attachments/assets/67c0e85d-cdbc-4a9e-b724-df3f4ea1799a)
+
+
+2.点击 `确定` 并重新启动计算机
+
+3.以管理员身份打开命令提示符，输入以下命令安装WSL：
+- 在 PowerShell 中设置 WSL 2 为默认版本： 
+```
+wsl --set-default-version 2
+```
+- 更新 WSL 内核，使用国内网络建议添加`--web-download`： 
+```
+wsl --update --web-download
+```
+安装成功后的结果如下：
+
+![abe944eb639649fae89175ed09af9fdd](https://github.com/user-attachments/assets/74fc0c97-cf3c-47c6-b3a2-240ba97a44ff)
+
+4.下载安装docker-desktop
+进入官网下载对应的版本安装即可，官网链接：[https://www.docker.com/products/docker-desktop/](https://www.docker.com/products/docker-desktop/)
+
+5.验证是否安装成功：
+```
+docker --version
+docker-compose --version
+```
+
+![a263610663c19d4046f28773a1126369](https://github.com/user-attachments/assets/1f8e801b-b2db-4644-83d7-5da10f4e5764)
+
+6.milvus向量数据库安装
+- 创建milvus文件夹，并在该文件夹下创建多个子文件夹，如下：
+
+![image](https://github.com/user-attachments/assets/27599318-2a9a-4358-a1ec-226ca8363921)
+
+- 下载milvus
+进入下载页面：[https://github.com/milvus-io/milvus/releases](https://github.com/milvus-io/milvus/releases)
+选择milvus版本及其对应的yml文件，点击下载即可，如下：
+
+![image](https://github.com/user-attachments/assets/5b8804ca-5c6b-4102-82ac-d47eee31c77b)
+
+- 将下载好的 `milvus-standalone-docker-compose.yml` 重命名为 `docker-compose.yml` ，并放入milvus文件中，如下：
+
+![bf7215948670e96f9b50f90a67463950](https://github.com/user-attachments/assets/177d4889-49ff-4af4-8515-7722dc65a504)
+
+- 在milvus文件夹中启动cmd命令，输入以下命令：
+```
+docker compose up -d
+docker compose ps
+docker port milvus-standalone 19530/tcp
+```
+运行结果如下：
+
+![694be819cd99abc328136139f2e8e8d2](https://github.com/user-attachments/assets/2506153f-9625-42dd-b09c-db01e5ded5d6)
+
+![1a3086ad4519524717991dffa47cce29](https://github.com/user-attachments/assets/a8e9a22c-2b1c-4c95-9e15-fe8d6cb0c3ee)
+
+至此，milvus数据库部署成功！
+
+7.Attu图形化界面安装
+下载地址：[https://github.com/zilliztech/attu/releases](https://github.com/zilliztech/attu/releases)
+选择对应的版本直接下载安装即可：
+
+![image](https://github.com/user-attachments/assets/b4e96c46-e5e8-42e0-aae9-670008d3ff53)
+
+## Environment Installation
+```
+conda create --name rag-env python=3.10.18
+cd Knowledge_QA_RAG
+conda activate rag-env
+pip install -r requirements.txt
+```
+## Quick Start
+1.启动milvus数据库
+
+![image](https://github.com/user-attachments/assets/4d2a37ad-3f74-4b72-969c-685c6b023e96)
+
+2.启动系统服务
+```
+python server.py
+```
+或
+```
+uvicorn server:app --reload --host 127.0.0.1 --port 8000
+```
+
+3.访问页面: 在浏览器中输入下面url地址即可访问
+```
+http://127.0.0.1:8000/
+```
+
+## 大模型配置
+要使用大模型生成、智能体等相关功能，需要在项目根目录下.env文件中型配置自己的API_KEY
+
+## 其他环境
+requirements.txt中展示了本项目需要的python库

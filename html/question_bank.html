@@ -1,0 +1,968 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>题库管理</title>
+  <link rel="stylesheet" href="/assets/css/graindashboard.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+  <style>
+    body { padding: 30px; background: #f8f9fa; }
+    .filter-card { border-left: 4px solid #ffc107; }
+    .stem-cell { max-width: 420px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .table td, .table th { vertical-align: middle; }
+    .muted-small { color: #6c757d; font-size: 12px; }
+    .ai-badge {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #0d6efd;
+      color: white;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .action-cell-content {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .preview-paper { background: #fff; border: 1px solid #e9ecef; border-radius: 12px; }
+    .preview-paper .blank { display: inline-block; min-width: 72px; border-bottom: 2px solid #555; vertical-align: middle; }
+    .preview-paper .answer { color: #dc3545; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h1 class="mb-0">题库管理</h1>
+      <div>
+        <span class="me-3">欢迎，<strong>{{ user.username }}</strong></span>
+        <a href="/" class="btn btn-outline-secondary">返回组卷页面</a>
+      </div>
+    </div>
+
+    <div class="card filter-card mb-3">
+      <div class="card-body">
+        <div class="row g-2">
+          <div class="col-md-3">
+            <label class="form-label">关键词</label>
+            <input id="keyword" class="form-control" placeholder="题干/大题题干/解析">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">题型</label>
+            <select id="questionType" class="form-select">
+              <option value="">全部</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">难度</label>
+            <select id="difficulty" class="form-select">
+              <option value="">全部</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">知识点</label>
+            <select id="kpCode" class="form-select">
+              <option value="">全部</option>
+            </select>
+          </div>
+          <div class="col-md-2 d-flex align-items-end gap-2">
+            <button class="btn btn-warning w-100" onclick="loadQuestions(1)">检索</button>
+            <button class="btn btn-outline-secondary w-100" onclick="resetFilters()">重置</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>题目列表</span>
+        <span id="summary" class="muted-small">加载中...</span>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-striped mb-0">
+            <thead>
+              <tr>
+                <th style="width: 70px;">ID</th>
+                <th style="width: 90px;">题型</th>
+                <th>题干</th>
+                <th style="width: 90px;">难度</th>
+                <th style="width: 180px;">知识点</th>
+                <th style="width: 220px;">操作</th>
+              </tr>
+            </thead>
+            <tbody id="questionBody">
+              <tr><td colspan="6" class="text-center py-4">加载中...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card-footer d-flex justify-content-between align-items-center">
+        <div id="paginationText" class="muted-small"></div>
+        <div class="d-flex gap-2">
+          <button id="prevBtn" class="btn btn-sm btn-outline-secondary" onclick="changePage(-1)">上一页</button>
+          <button id="nextBtn" class="btn btn-sm btn-outline-secondary" onclick="changePage(1)">下一页</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">题目预览</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="previewBody">
+          <div class="text-center py-4 text-muted">加载中...</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-warning" id="previewEditBtn">编辑内容</button>
+          <button type="button" class="btn btn-outline-info" id="previewToggleAnswerBtn">查看参考答案</button>
+          <button type="button" class="btn btn-primary" id="previewExportBtn">导出为 .docx</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">编辑题目</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="editId">
+          <div class="row g-2">
+            <div class="col-md-4">
+              <label class="form-label">题型</label>
+              <select id="editType" class="form-select">
+                <option value="单选">单选</option>
+                <option value="多选">多选</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">难度</label>
+              <input id="editDifficulty" class="form-control" placeholder="如：难/中/易">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">知识点代码</label>
+              <input id="editKpCode" class="form-control" placeholder="知识点代码">
+            </div>
+          </div>
+
+          <div class="mt-2">
+            <label class="form-label">大题题干</label>
+            <textarea id="editBigStem" class="form-control" rows="2"></textarea>
+          </div>
+
+          <div class="mt-2">
+            <label class="form-label">小题题干</label>
+            <textarea id="editStem" class="form-control" rows="3"></textarea>
+          </div>
+
+          <div class="mt-2">
+            <label class="form-label">选项（每行一个）</label>
+            <textarea id="editOptions" class="form-control" rows="5" placeholder="A选项文本"></textarea>
+          </div>
+
+          <div class="mt-2">
+            <label class="form-label">答案</label>
+            <input id="editAnswer" class="form-control">
+          </div>
+
+          <div class="mt-2">
+            <label class="form-label">解析</label>
+            <textarea id="editAnalysis" class="form-control" rows="3"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="button" class="btn btn-primary" onclick="saveEdit()">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    let currentPage = 1;
+    let pageSize = 20;
+    let totalPages = 1;
+    let latestItems = [];
+    let editModal = null;
+    let previewModal = null;
+    let currentPreviewQuestion = null;
+    let previewShowAnswer = false;
+    let previewEditMode = false;
+
+    function getFilters() {
+      return {
+        keyword: document.getElementById('keyword').value.trim(),
+        question_type: document.getElementById('questionType').value,
+        difficulty: document.getElementById('difficulty').value,
+        kp_code: document.getElementById('kpCode').value
+      };
+    }
+
+    function resetFilters() {
+      document.getElementById('keyword').value = '';
+      document.getElementById('questionType').value = '';
+      document.getElementById('difficulty').value = '';
+      document.getElementById('kpCode').value = '';
+      loadQuestions(1);
+    }
+
+    async function loadMeta() {
+      const res = await fetch('/api/question-bank/meta');
+      const data = await res.json();
+      if (!data.success) {
+        alert(data.message || '加载筛选项失败');
+        return;
+      }
+
+      const diffSel = document.getElementById('difficulty');
+      const typeSel = document.getElementById('questionType');
+      (data.question_types || []).forEach(type => {
+        const op = document.createElement('option');
+        op.value = type;
+        op.textContent = type;
+        typeSel.appendChild(op);
+      });
+
+      data.difficulties.forEach(d => {
+        const op = document.createElement('option');
+        op.value = d;
+        op.textContent = d;
+        diffSel.appendChild(op);
+      });
+
+      const kpSel = document.getElementById('kpCode');
+      data.knowledge_points.forEach(kp => {
+        const op = document.createElement('option');
+        op.value = kp.code;
+        op.textContent = kp.name ? `${kp.code} - ${kp.name}` : kp.code;
+        kpSel.appendChild(op);
+      });
+    }
+
+    function renderRows(items) {
+      const body = document.getElementById('questionBody');
+      if (!items || items.length === 0) {
+        body.innerHTML = '<tr><td colspan="6" class="text-center py-4">没有符合条件的题目</td></tr>';
+        return;
+      }
+
+      body.innerHTML = items.map((q, idx) => {
+        const kpText = q.knowledge_point_name ? `${q.knowledge_point_code} (${q.knowledge_point_name})` : (q.knowledge_point_code || '');
+        const aiBadge = q.ai_generated ? '<span class="ai-badge">AI生成</span>' : '';
+        const titleText = q.preview_text || q.stem || q.big_stem || '';
+        let actionHtml = `<button class="btn btn-sm btn-outline-primary" onclick="openEdit(${idx})">编辑</button>`;
+        if (q.content_format === 'short_answer_compound') {
+          actionHtml = `<button class="btn btn-sm btn-outline-primary" onclick="openPreview(${idx})">编辑</button>`;
+        }
+        return `
+          <tr>
+            <td>${q.id}</td>
+            <td>${q.question_type}${aiBadge}</td>
+            <td class="stem-cell" title="${titleText.replace(/"/g, '&quot;')}">${titleText}</td>
+            <td>${q.difficulty || ''}</td>
+            <td title="${kpText}">${kpText}</td>
+            <td><div class="action-cell-content">${actionHtml}</div></td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function escapeHtml(value) {
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function sanitizeGeneratedText(text) {
+      return String(text || '')
+        .replace(/[\u200b-\u200f\ufeff\u2060]/g, '')
+        .replace(/\u00a0/g, ' ')
+        .trim();
+    }
+
+    function normalizeTableDescriptionLabel(description) {
+      const text = sanitizeGeneratedText(description);
+      const normalized = text
+        .replace(/[（(]\s*[1MN]\s*:\s*[1MN]\s*[)）]/giu, '')
+        .replace(/[（(][^()（）]*[，,]\s*[1MN]\s*:\s*[1MN][^()（）]*[)）]\s*$/giu, '')
+        .replace(/(个人信息表|信息表|关系表|数据表|表结构|表)$/u, '')
+        .trim();
+      return normalized || text;
+    }
+
+    function formatTableTitle(name, description) {
+      return `<span class="tbl-desc">${escapeHtml(normalizeTableDescriptionLabel(description))}</span><span class="tbl-name">${escapeHtml(name || '')}</span>表结构`;
+    }
+
+    function renderBlankOrAnswer(answer, showAnswer, minWidth = 80) {
+      const blankClass = showAnswer ? 'd-none' : '';
+      const answerClass = showAnswer ? '' : 'd-none';
+      return `<span class="blank q3-blank ${blankClass}" style="min-width:${minWidth}px;">&nbsp;</span><span class="answer q3-answer ${answerClass}">${escapeHtml(answer)}</span>`;
+    }
+
+    function renderQuestionWithBlankHtml(question, answer, showAnswer) {
+      const text = String(question || '');
+      const parts = text.split(/(_{4,}|＿{2,}|[○◯□▢]{1,})/g);
+      let replaced = false;
+      return parts.map(part => {
+        if (/^(_{4,}|＿{2,}|[○◯□▢]{1,})$/.test(part || '')) {
+          if (!replaced) {
+            replaced = true;
+            return renderBlankOrAnswer(answer, showAnswer);
+          }
+          return escapeHtml(part);
+        }
+        return escapeHtml(part);
+      }).join('');
+    }
+
+    function renderShortAnswerPreview(item, showAnswer = false) {
+      const payload = item.payload || {};
+      const answers = payload.answers || {};
+      const pd = payload.physical_design_data || {};
+      const tables = pd.tables || [];
+      const relationQuestions = pd.relation_questions || [];
+      const designQuestions = pd.design_questions || [];
+      const answerAreaClass = showAnswer ? '' : 'd-none';
+
+      let tablesHtml = '';
+      tables.forEach(table => {
+        const rows = (table.columns || []).map(col => {
+          const typeHtml = col.masked_field === 'type'
+            ? renderBlankOrAnswer(col.type || '', showAnswer)
+            : escapeHtml(col.type || '');
+          const constraintDisplay = String(col.constraint || '').toUpperCase().includes('NOT NULL') || col.constraint === '不允许为空' ? '不允许为空' : '';
+          const constraintHtml = col.masked_field === 'constraint'
+            ? renderBlankOrAnswer(constraintDisplay, showAnswer)
+            : escapeHtml(constraintDisplay);
+          return `<tr><td>${escapeHtml(col.name)}</td><td>${escapeHtml(col.desc)}</td><td>${typeHtml}</td><td>${constraintHtml}</td></tr>`;
+        }).join('');
+
+        let sampleHtml = '';
+        if ((table.sample_rows || []).length > 0) {
+          const headerHtml = (table.columns || []).map(col => `<th>${escapeHtml(col.name)}</th>`).join('');
+          const bodyHtml = (table.sample_rows || []).map((sampleRow, rowIndex) => {
+            const colsHtml = (table.columns || []).map(col => {
+              const isMasked = table.sample_mask && rowIndex === table.sample_mask.row_index && col.name === table.sample_mask.column_name;
+              const val = sampleRow[col.name] || '';
+              return `<td>${isMasked ? renderBlankOrAnswer(table.sample_mask.answer || val, showAnswer, 60) : escapeHtml(val)}</td>`;
+            }).join('');
+            return `<tr>${colsHtml}</tr>`;
+          }).join('');
+          sampleHtml = `
+            <div class="mt-2 mb-3">
+              <div class="fw-semibold mb-1">${escapeHtml(table.name)}表数据</div>
+              <div class="table-responsive"><table class="table table-bordered table-sm mb-0"><thead><tr class="table-light">${headerHtml}</tr></thead><tbody>${bodyHtml}</tbody></table></div>
+            </div>
+          `;
+        }
+
+        tablesHtml += `
+          <div class="table-block-item mb-4">
+            <div class="mb-1 fw-bold table-title">${formatTableTitle(table.name || '', table.description || '')}</div>
+            <div class="table-responsive"><table class="table table-bordered table-sm mb-0 editable-table" style="font-size:0.9em;"><thead><tr class="table-light"><th>字段名</th><th>字段描述</th><th>数据类型</th><th>属性限制</th></tr></thead><tbody>${rows}</tbody></table></div>
+            ${sampleHtml}
+          </div>
+        `;
+      });
+
+      const relationHtml = relationQuestions.map((rq, idx) => {
+        const relationMode = String(rq.relation_mode || '');
+        let content = relationMode;
+        if (relationMode.includes('(')) {
+          const parts = relationMode.split('(');
+          content = (parts.length > 1 ? parts.slice(1).join('(') : relationMode).replace(/\)\s*$/, '');
+        }
+        return `
+          <div class="mb-3 rq-item">
+            <div class="ms-3 mb-2 rq-mode-line" id="rel-mode-${idx}">${idx + 1}) ${escapeHtml(rq.table_name)}表: ${escapeHtml(rq.table_name)}(${renderBlankOrAnswer(content, showAnswer, 150)})</div>
+            <div class="ms-3 mb-3 small text-muted">主关键字：<span id="rel-pk-${idx}">${renderBlankOrAnswer(rq.pk || '', showAnswer, 90)}</span> 外关键字：<span id="rel-fk-${idx}">${renderBlankOrAnswer(rq.fk || '', showAnswer, 90)}</span></div>
+          </div>
+        `;
+      }).join('');
+
+      const designHtml = designQuestions.map((dq, idx) => {
+        const cleanQuestion = String(dq.question || '').replace(/^\d+[.)）]\s*/, '');
+        return `<div class="ms-3 mb-2 dq-item" id="dq-q-${idx}">${idx + 1}) ${renderQuestionWithBlankHtml(cleanQuestion, dq.answer || '', showAnswer)}</div>`;
+      }).join('');
+
+      return `
+        <div class="preview-paper p-4">
+          <h5 class="fw-bold mb-4" id="paper-main-title">${escapeHtml(payload.main_title || item.stem || '')}</h5>
+          <div id="paper-background" class="mb-3" style="white-space: pre-wrap; text-indent: 2em; line-height: 1.6;">${escapeHtml(payload.background_text || item.big_stem || '')}</div>
+          <p class="mb-4 text-muted border-bottom pb-2">请完成以下系统分析和设计，将你的答案填写到相应题号下的空格中。</p>
+
+          <div class="mb-3">
+            <strong id="q1-num">1.</strong> <span id="q1-text">${escapeHtml(payload.q1_text || '')}</span>
+            <div id="q1-answer" class="mt-1 answer-area ${answerAreaClass}">${escapeHtml(payload.q1_answer || '')}</div>
+          </div>
+
+          <div class="mb-3">
+            <strong id="q2-num">2.</strong> <span id="q2-text">${escapeHtml(payload.q2_text || '')}</span>
+            <div class="mt-1 answer-area ${answerAreaClass}">A: <span id="ans-A">${escapeHtml(answers.A || '')}</span>，B: <span id="ans-B">${escapeHtml(answers.B || '')}</span>，C: <span id="ans-C">${escapeHtml(answers.C || '')}</span></div>
+          </div>
+
+          ${payload.er_image ? `<div class="text-center my-4"><img id="preview-er-image" src="${payload.er_image}" style="max-width:90%; border:1px solid #dee2e6; border-radius:4px; padding:10px;" /><div class="text-center text-muted mt-2 small" id="er-caption">${escapeHtml(payload.er_caption || '')}</div></div>` : ''}
+
+          <div class="mb-2" id="q3-intro"><strong>${escapeHtml(payload.q3_intro || '')}</strong></div>
+          <div id="tables-container">${tablesHtml}</div>
+          <div class="mb-2" id="q3-sub1-text">${escapeHtml(payload.q3_sub1 || '')}</div>
+          <div id="rq-container">${relationHtml}</div>
+          <div class="mb-2 mt-3" id="q3-sub2-text">${escapeHtml(payload.q3_sub2 || '')}</div>
+          <div id="dq-container">${designHtml}</div>
+        </div>
+      `;
+    }
+
+    function scrapePreviewPaperData() {
+      if (!currentPreviewQuestion) return null;
+      const payload = JSON.parse(JSON.stringify(currentPreviewQuestion.payload || {}));
+
+      payload.main_title = document.getElementById('paper-main-title')?.innerText || payload.main_title || '';
+      payload.background_text = document.getElementById('paper-background')?.innerText || payload.background_text || '';
+      const q1Text = document.getElementById('q1-text');
+      const q1Num = document.getElementById('q1-num');
+      if (q1Text && q1Num) payload.q1_text = `${q1Num.innerText} ${q1Text.innerText}`;
+      payload.q1_answer = document.getElementById('q1-answer')?.innerText || payload.q1_answer || '';
+      const q2Text = document.getElementById('q2-text');
+      const q2Num = document.getElementById('q2-num');
+      if (q2Text && q2Num) payload.q2_text = `${q2Num.innerText} ${q2Text.innerText}`;
+      payload.er_caption = document.getElementById('er-caption')?.innerText || payload.er_caption || '';
+      payload.q3_intro = document.getElementById('q3-intro')?.innerText || payload.q3_intro || '';
+      payload.q3_sub1 = document.getElementById('q3-sub1-text')?.innerText || payload.q3_sub1 || '';
+      payload.q3_sub2 = document.getElementById('q3-sub2-text')?.innerText || payload.q3_sub2 || '';
+      payload.er_image = document.getElementById('preview-er-image')?.src || payload.er_image || '';
+
+      payload.answers = payload.answers || {};
+      payload.answers.A = document.getElementById('ans-A')?.innerText || payload.answers.A || '';
+      payload.answers.B = document.getElementById('ans-B')?.innerText || payload.answers.B || '';
+      payload.answers.C = document.getElementById('ans-C')?.innerText || payload.answers.C || '';
+
+      payload.physical_design_data = payload.physical_design_data || {};
+      payload.physical_design_data.tables = [];
+      document.querySelectorAll('#previewBody .table-block-item').forEach(block => {
+        const nameSpan = block.querySelector('.tbl-name');
+        const descSpan = block.querySelector('.tbl-desc');
+        const tableName = nameSpan ? nameSpan.innerText : 'Unknown';
+        const tableDesc = descSpan ? descSpan.innerText : '';
+        const tableObj = { name: tableName, description: tableDesc, columns: [], sample_rows: [], sample_mask: null };
+
+        block.querySelectorAll('table.editable-table tbody tr').forEach(row => {
+          const cols = row.querySelectorAll('td');
+          if (cols.length >= 4) {
+            const colObj = {
+              name: cols[0].innerText.trim(),
+              desc: cols[1].innerText.trim(),
+              type: '',
+              constraint: '',
+              masked_field: null
+            };
+
+            const getCellData = (cell, fieldName) => {
+              const ansSpan = cell.querySelector('.q3-answer');
+              if (ansSpan) {
+                colObj.masked_field = fieldName;
+                return ansSpan.innerText.trim();
+              }
+              return cell.innerText.trim();
+            };
+
+            colObj.type = getCellData(cols[2], 'type').toLowerCase();
+            const rawConstraint = getCellData(cols[3], 'constraint');
+            if (rawConstraint === '不允许为空') colObj.constraint = 'NOT NULL';
+            else if (!rawConstraint) colObj.constraint = '';
+            else colObj.constraint = rawConstraint;
+            tableObj.columns.push(colObj);
+          }
+        });
+
+        const sampleTable = Array.from(block.querySelectorAll('table')).find(t => !t.classList.contains('editable-table'));
+        if (sampleTable && tableObj.columns.length > 0) {
+          sampleTable.querySelectorAll('tbody tr').forEach((sampleRow, rowIndex) => {
+            const rowObj = {};
+            const cells = sampleRow.querySelectorAll('td');
+            tableObj.columns.forEach((column, columnIdx) => {
+              const cell = cells[columnIdx];
+              if (!cell) {
+                rowObj[column.name] = '';
+                return;
+              }
+              const ansSpan = cell.querySelector('.q3-answer');
+              if (ansSpan) {
+                const answer = ansSpan.innerText.trim();
+                rowObj[column.name] = answer;
+                tableObj.sample_mask = { row_index: rowIndex, column_name: column.name, answer };
+              } else {
+                rowObj[column.name] = cell.innerText.trim();
+              }
+            });
+            tableObj.sample_rows.push(rowObj);
+          });
+        }
+
+        payload.physical_design_data.tables.push(tableObj);
+      });
+
+      payload.physical_design_data.relation_questions = [];
+      document.querySelectorAll('#previewBody .rq-item').forEach(item => {
+        const modeDiv = item.querySelector('div[id^="rel-mode-"]') || item.querySelector('.rq-mode-line') || item.children[0];
+        let table_name = '';
+        let relation_mode = '';
+        if (modeDiv) {
+          const text = modeDiv.innerText.replace(/^\d+[\).]\s*/, '').trim();
+          if (text.includes('表:')) {
+            const parts = text.split('表:');
+            table_name = parts[0].trim();
+            relation_mode = parts.slice(1).join('表:').trim();
+          } else {
+            relation_mode = text;
+          }
+        }
+        const linesDiv = item.children[1];
+        let pk = '';
+        let fk = '';
+        if (linesDiv) {
+          const pkSpan = linesDiv.querySelector('[id^="rel-pk-"]');
+          const fkSpan = linesDiv.querySelector('[id^="rel-fk-"]');
+          if (pkSpan) pk = (pkSpan.querySelector('.q3-answer') || pkSpan).innerText.replace(/_+/g, '').trim();
+          if (fkSpan) fk = (fkSpan.querySelector('.q3-answer') || fkSpan).innerText.replace(/_+/g, '').trim();
+        }
+        if (table_name || relation_mode) payload.physical_design_data.relation_questions.push({ table_name, relation_mode, pk, fk });
+      });
+
+      payload.physical_design_data.design_questions = [];
+      document.querySelectorAll('#previewBody .dq-item').forEach(item => {
+        const answerSpan = item.querySelector('.q3-answer');
+        const answer = answerSpan ? answerSpan.innerText.trim() : '';
+        payload.physical_design_data.design_questions.push({
+          question: item.innerText.replace(/×/g, '').trim(),
+          answer
+        });
+      });
+
+      return payload;
+    }
+
+    function setPreviewButtons(editing) {
+      const editBtn = document.getElementById('previewEditBtn');
+      if (!editBtn) return;
+      editBtn.innerHTML = editing ? '保存修改' : '编辑内容';
+      editBtn.className = editing ? 'btn btn-success' : 'btn btn-warning';
+    }
+
+    function setPreviewTextEditable(el, editable) {
+      if (!el) return;
+      el.contentEditable = editable ? 'true' : 'false';
+      if (editable) el.classList.add('bg-light', 'border', 'border-warning', 'p-1', 'rounded');
+      else el.classList.remove('bg-light', 'border', 'border-warning', 'p-1', 'rounded');
+    }
+
+    function ensurePreviewTableRowDeleteCell(row) {
+      if (!row || row.querySelector('.del-tbl-row-btn')) return;
+      const actionCell = document.createElement('td');
+      actionCell.className = 'table-row-action-cell text-center align-middle';
+      actionCell.style.width = '70px';
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'btn btn-sm btn-outline-danger del-tbl-row-btn';
+      delBtn.textContent = '删除行';
+      delBtn.onclick = () => {
+        const tbody = row.parentElement;
+        if (!tbody) return;
+        if (tbody.querySelectorAll('tr').length <= 1) {
+          alert('表格至少保留一行');
+          return;
+        }
+        row.remove();
+      };
+      actionCell.appendChild(delBtn);
+      row.appendChild(actionCell);
+    }
+
+    function enablePreviewTableEditing(block) {
+      const title = block.querySelector('.table-title');
+      if (title) {
+        title.contentEditable = 'true';
+        title.classList.add('border', 'border-warning', 'rounded');
+        if (!title.querySelector('.del-tbl-btn')) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'btn btn-sm btn-outline-danger del-tbl-btn ms-2';
+          btn.innerHTML = '&times;';
+          btn.onclick = () => { if (confirm('确定删除此表吗？')) block.remove(); };
+          title.appendChild(btn);
+        }
+      }
+
+      const table = block.querySelector('.editable-table');
+      if (!table) return;
+      const headRow = table.querySelector('thead tr');
+      if (headRow && !headRow.querySelector('.table-row-action-head')) {
+        const th = document.createElement('th');
+        th.className = 'table-row-action-head text-center';
+        th.textContent = '操作';
+        headRow.appendChild(th);
+      }
+      table.querySelectorAll('tbody tr').forEach(row => {
+        Array.from(row.children).slice(0, 4).forEach(td => td.contentEditable = 'true');
+        ensurePreviewTableRowDeleteCell(row);
+      });
+      if (!block.querySelector('.table-row-toolbar')) {
+        const toolbar = document.createElement('div');
+        toolbar.className = 'table-row-toolbar mt-2';
+        const addRowBtn = document.createElement('button');
+        addRowBtn.type = 'button';
+        addRowBtn.className = 'btn btn-sm btn-outline-success add-tbl-row-btn';
+        addRowBtn.innerHTML = '新增行';
+        addRowBtn.onclick = () => {
+          const tbody = table.querySelector('tbody');
+          if (!tbody) return;
+          const row = document.createElement('tr');
+          row.innerHTML = '<td contenteditable="true">new_field</td><td contenteditable="true">字段描述</td><td contenteditable="true">varchar(50)</td><td contenteditable="true"></td>';
+          ensurePreviewTableRowDeleteCell(row);
+          tbody.appendChild(row);
+        };
+        toolbar.appendChild(addRowBtn);
+        block.appendChild(toolbar);
+      }
+    }
+
+    function enterPreviewEditMode() {
+      if (!currentPreviewQuestion) return;
+      previewEditMode = true;
+      setPreviewButtons(true);
+
+      ['paper-main-title', 'paper-background', 'ans-A', 'ans-B', 'ans-C', 'q1-text', 'q1-answer', 'q2-text', 'q3-intro', 'q3-sub1-text', 'q3-sub2-text', 'er-caption'].forEach(id => {
+        setPreviewTextEditable(document.getElementById(id), true);
+      });
+
+      if (!previewShowAnswer) {
+        document.getElementById('previewToggleAnswerBtn').click();
+      }
+
+      document.querySelectorAll('#previewBody .table-block-item').forEach(enablePreviewTableEditing);
+
+      const tablesContainer = document.getElementById('tables-container');
+      if (tablesContainer && !document.getElementById('preview-add-table-btn')) {
+        const addBtn = document.createElement('button');
+        addBtn.id = 'preview-add-table-btn';
+        addBtn.className = 'btn btn-sm btn-success mt-2 mb-3';
+        addBtn.textContent = '添加表格';
+        addBtn.onclick = () => {
+          const div = document.createElement('div');
+          div.className = 'table-block-item mb-4';
+          div.innerHTML = `
+            <div class="mb-1 fw-bold table-title border border-warning rounded" contenteditable="true">${formatTableTitle('NewTable', 'Desc')}</div>
+            <div class="table-responsive"><table class="table table-bordered table-sm mb-0 editable-table" style="font-size:0.9em;"><thead><tr class="table-light"><th>字段名</th><th>字段描述</th><th>数据类型</th><th>属性限制</th></tr></thead><tbody><tr><td contenteditable="true">id</td><td contenteditable="true">ID</td><td contenteditable="true">int</td><td contenteditable="true"></td></tr></tbody></table></div>
+          `;
+          tablesContainer.appendChild(div);
+          enablePreviewTableEditing(div);
+        };
+        tablesContainer.after(addBtn);
+      }
+
+      document.querySelectorAll('#previewBody .rq-item').forEach(item => {
+        item.querySelectorAll('div').forEach(d => d.contentEditable = 'true');
+        item.classList.add('border', 'border-warning', 'p-1', 'rounded');
+        if (!item.querySelector('.del-rq-btn')) {
+          const btn = document.createElement('button');
+          btn.className = 'btn btn-sm btn-outline-danger del-rq-btn float-end';
+          btn.innerHTML = '&times;';
+          btn.onclick = () => { if (confirm('确定删除此关系模式吗？')) item.remove(); };
+          item.insertBefore(btn, item.firstChild);
+        }
+      });
+
+      const rqContainer = document.getElementById('rq-container');
+      if (rqContainer && !document.getElementById('preview-add-rq-btn')) {
+        const addBtn = document.createElement('button');
+        addBtn.id = 'preview-add-rq-btn';
+        addBtn.className = 'btn btn-sm btn-success mt-2 mb-3';
+        addBtn.textContent = '添加关系模式题目';
+        addBtn.onclick = () => {
+          const idx = document.querySelectorAll('#previewBody .rq-item').length + 1;
+          const div = document.createElement('div');
+          div.className = 'mb-3 rq-item border border-warning p-1 rounded';
+          div.innerHTML = `
+            <button class="btn btn-sm btn-outline-danger del-rq-btn float-end">&times;</button>
+            <div class="ms-3 mb-2 rq-mode-line" contenteditable="true">${idx}) NewTable表: NewTable(${renderBlankOrAnswer('col1, col2', true, 150)})</div>
+            <div class="ms-3 mb-3 small text-muted" contenteditable="true">主关键字：<span id="rel-pk-new">${renderBlankOrAnswer('col1', true, 90)}</span> 外关键字：<span id="rel-fk-new">${renderBlankOrAnswer('无', true, 90)}</span></div>
+          `;
+          div.querySelector('.del-rq-btn').onclick = () => div.remove();
+          rqContainer.appendChild(div);
+        };
+        rqContainer.after(addBtn);
+      }
+
+      const dqContainer = document.getElementById('dq-container');
+      if (dqContainer) {
+        dqContainer.querySelectorAll('.dq-item').forEach(it => {
+          it.contentEditable = 'true';
+          it.classList.add('border', 'border-warning', 'p-1', 'rounded', 'position-relative');
+          if (!it.querySelector('.del-dq-btn')) {
+            const btn = document.createElement('span');
+            btn.className = 'btn btn-sm btn-outline-danger ms-2 del-dq-btn';
+            btn.innerHTML = '&times;';
+            btn.onclick = () => it.remove();
+            it.appendChild(btn);
+          }
+        });
+        if (!document.getElementById('preview-add-dq-btn')) {
+          const addBtn = document.createElement('button');
+          addBtn.id = 'preview-add-dq-btn';
+          addBtn.className = 'btn btn-sm btn-success mt-2 d-block';
+          addBtn.textContent = '添加小问';
+          addBtn.onclick = () => {
+            const div = document.createElement('div');
+            div.className = 'ms-3 mb-2 dq-item border border-warning p-1 rounded position-relative';
+            div.contentEditable = 'true';
+            div.innerHTML = `New Question ${renderBlankOrAnswer('Answer', true, 80)}<span class="btn btn-sm btn-outline-danger ms-2 del-dq-btn">&times;</span>`;
+            div.querySelector('.del-dq-btn').onclick = () => div.remove();
+            dqContainer.appendChild(div);
+          };
+          dqContainer.appendChild(addBtn);
+        }
+      }
+    }
+
+    function exitPreviewEditMode() {
+      previewEditMode = false;
+      setPreviewButtons(false);
+    }
+
+    async function savePreviewEdits() {
+      document.querySelectorAll('#previewBody .del-tbl-btn, #previewBody .del-rq-btn, #previewBody .del-dq-btn, #previewBody .add-tbl-row-btn, #previewBody .del-tbl-row-btn').forEach(el => el.remove());
+      document.querySelectorAll('#previewBody .table-row-toolbar, #preview-add-table-btn, #preview-add-rq-btn, #preview-add-dq-btn').forEach(el => el.remove());
+      document.querySelectorAll('#previewBody .table-row-action-head, #previewBody .table-row-action-cell').forEach(el => el.remove());
+
+      const payload = scrapePreviewPaperData();
+      if (!payload) return;
+
+      const res = await fetch(`/api/question-bank/questions/${currentPreviewQuestion.id}/compound`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          module_slug: currentPreviewQuestion.module_slug || payload.module_slug || 'database-big-question-type-1',
+          main_title: payload.main_title,
+          background_text: payload.background_text,
+          q1_text: payload.q1_text,
+          q1_answer: payload.q1_answer,
+          q2_text: payload.q2_text,
+          er_caption: payload.er_caption,
+          q3_intro: payload.q3_intro,
+          q3_sub1: payload.q3_sub1,
+          q3_sub2: payload.q3_sub2,
+          answers: payload.answers || {},
+          er_image: payload.er_image || '',
+          masked_er_data: currentPreviewQuestion.payload?.masked_er_data || {},
+          physical_design_data: payload.physical_design_data || {}
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        alert(data.message || '保存失败');
+        return;
+      }
+
+      currentPreviewQuestion.payload = payload;
+      currentPreviewQuestion.big_stem = payload.background_text || currentPreviewQuestion.big_stem;
+      currentPreviewQuestion.stem = payload.main_title || currentPreviewQuestion.stem;
+      document.getElementById('previewBody').innerHTML = renderShortAnswerPreview(currentPreviewQuestion, previewShowAnswer);
+      exitPreviewEditMode();
+      await loadQuestions(currentPage);
+      alert('保存成功');
+    }
+
+    async function openPreview(index) {
+      const q = latestItems[index];
+      if (!q) return;
+
+      const body = document.getElementById('previewBody');
+      body.innerHTML = '<div class="text-center py-4 text-muted">加载中...</div>';
+      previewShowAnswer = false;
+      previewEditMode = false;
+      setPreviewButtons(false);
+      document.getElementById('previewToggleAnswerBtn').textContent = '查看参考答案';
+      previewModal.show();
+
+      try {
+        const res = await fetch(`/api/question-bank/questions/${q.id}`);
+        const data = await res.json();
+        if (!data.success) {
+          body.innerHTML = `<div class="alert alert-danger">${escapeHtml(data.message || '加载失败')}</div>`;
+          return;
+        }
+
+        currentPreviewQuestion = data.item;
+        body.innerHTML = renderShortAnswerPreview(currentPreviewQuestion, previewShowAnswer);
+      } catch (error) {
+        console.error('预览加载失败：', error);
+        body.innerHTML = `<div class="alert alert-danger">预览加载失败：${escapeHtml(error.message || '未知错误')}</div>`;
+      }
+    }
+
+    async function exportCompoundQuestionById(questionId, showAnswer) {
+      const res = await fetch(`/api/question-bank/questions/${questionId}/export-docx`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ show_answer: !!showAnswer })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        alert(data.message || '导出失败');
+        return;
+      }
+
+      const a = document.createElement('a');
+      a.href = data.file_url;
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+
+    async function loadQuestions(page = 1) {
+      currentPage = page;
+      const f = getFilters();
+      const params = new URLSearchParams({
+        page: String(currentPage),
+        page_size: String(pageSize),
+        keyword: f.keyword,
+        question_type: f.question_type,
+        difficulty: f.difficulty,
+        kp_code: f.kp_code
+      });
+
+      const res = await fetch(`/api/question-bank/questions?${params.toString()}`);
+      const data = await res.json();
+      if (!data.success) {
+        alert(data.message || '加载题目失败');
+        return;
+      }
+
+      latestItems = data.items || [];
+      totalPages = data.pagination?.total_pages || 1;
+      renderRows(latestItems);
+
+      const total = data.pagination?.total || 0;
+      document.getElementById('summary').textContent = `共 ${total} 道题`;
+      document.getElementById('paginationText').textContent = `第 ${currentPage} / ${totalPages} 页`;
+      document.getElementById('prevBtn').disabled = currentPage <= 1;
+      document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+    }
+
+    function changePage(delta) {
+      const next = currentPage + delta;
+      if (next < 1 || next > totalPages) return;
+      loadQuestions(next);
+    }
+
+    function openEdit(index) {
+      const q = latestItems[index];
+      if (!q) return;
+      if (q.content_format === 'short_answer_compound') {
+        alert('该题为保存的综合题，请使用“预览”查看并导出。');
+        return;
+      }
+
+      document.getElementById('editId').value = q.id;
+      document.getElementById('editType').value = q.question_type || '单选';
+      document.getElementById('editDifficulty').value = q.difficulty || '';
+      document.getElementById('editKpCode').value = q.knowledge_point_code || '';
+      document.getElementById('editBigStem').value = q.big_stem || '';
+      document.getElementById('editStem').value = q.stem || '';
+      document.getElementById('editOptions').value = (q.options || []).join('\n');
+      document.getElementById('editAnswer').value = q.answer || '';
+      document.getElementById('editAnalysis').value = q.analysis || '';
+      editModal.show();
+    }
+
+    async function saveEdit() {
+      const id = document.getElementById('editId').value;
+      const payload = {
+        question_type: document.getElementById('editType').value,
+        difficulty: document.getElementById('editDifficulty').value.trim(),
+        knowledge_point_code: document.getElementById('editKpCode').value.trim(),
+        big_stem: document.getElementById('editBigStem').value.trim(),
+        stem: document.getElementById('editStem').value.trim(),
+        options: document.getElementById('editOptions').value
+          .split('\n')
+          .map(s => s.trim())
+          .filter(Boolean),
+        answer: document.getElementById('editAnswer').value.trim(),
+        analysis: document.getElementById('editAnalysis').value.trim()
+      };
+
+      const res = await fetch(`/api/question-bank/questions/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!data.success) {
+        alert(data.message || '保存失败');
+        return;
+      }
+
+      editModal.hide();
+      await loadQuestions(currentPage);
+      alert('保存成功');
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      editModal = new bootstrap.Modal(document.getElementById('editModal'));
+      previewModal = new bootstrap.Modal(document.getElementById('previewModal'));
+
+      document.getElementById('previewEditBtn').addEventListener('click', async () => {
+        if (!currentPreviewQuestion) return;
+        if (!previewEditMode) {
+          enterPreviewEditMode();
+        } else {
+          await savePreviewEdits();
+        }
+      });
+
+      document.getElementById('previewToggleAnswerBtn').addEventListener('click', () => {
+        if (!currentPreviewQuestion) return;
+        if (previewEditMode) {
+          alert('请先保存当前修改，再切换参考答案显示。');
+          return;
+        }
+        previewShowAnswer = !previewShowAnswer;
+        document.querySelectorAll('#previewBody .answer-area').forEach(el => el.classList.toggle('d-none', !previewShowAnswer));
+        document.querySelectorAll('#previewBody .q3-blank').forEach(el => el.classList.toggle('d-none', previewShowAnswer));
+        document.querySelectorAll('#previewBody .q3-answer').forEach(el => el.classList.toggle('d-none', !previewShowAnswer));
+        document.getElementById('previewToggleAnswerBtn').textContent = previewShowAnswer ? '隐藏参考答案' : '查看参考答案';
+      });
+
+      document.getElementById('previewExportBtn').addEventListener('click', async () => {
+        if (!currentPreviewQuestion) return;
+        if (previewEditMode) {
+          alert('请先保存当前修改，再导出。');
+          return;
+        }
+        await exportCompoundQuestionById(currentPreviewQuestion.id, previewShowAnswer);
+      });
+
+      await loadMeta();
+      await loadQuestions(1);
+    });
+  </script>
+</body>
+</html>

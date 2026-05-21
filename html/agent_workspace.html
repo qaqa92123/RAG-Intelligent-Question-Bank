@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>智能体工作台</title>
+  <link rel="stylesheet" href="/assets/css/graindashboard.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+  <style>
+    body { padding: 30px; background: #f8f9fa; }
+    .panel-card { border: 0; border-radius: 18px; box-shadow: 0 12px 30px rgba(31, 45, 61, 0.08); }
+    .trace-item { border-left: 3px solid #0d6efd; padding: 8px 0 8px 14px; margin-bottom: 10px; background: rgba(13, 110, 253, 0.03); }
+    .trace-time { color: #6c757d; font-size: 12px; }
+    .question-card { border: 1px solid #e9ecef; border-radius: 14px; padding: 16px; background: #fff; margin-bottom: 12px; }
+    .section-title { font-weight: 700; margin: 18px 0 12px; }
+    .tool-chip { display: inline-block; margin: 0 8px 8px 0; padding: 6px 10px; border-radius: 999px; background: #eef4ff; color: #0d6efd; font-size: 13px; }
+    .muted-box { background: #f1f3f5; border-radius: 12px; padding: 12px 14px; color: #495057; }
+    textarea { resize: vertical; }
+  </style>
+</head>
+<body>
+  <div class="container-fluid" style="max-width: 1380px;">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+      <div>
+        <h1 class="mb-1">智能体工作台</h1>
+        <div class="text-muted">用自然语言描述组题或组卷需求，系统会自动选择工具完成任务。</div>
+      </div>
+      <div>
+        <span class="me-3">欢迎，<strong>{{ user.username }}</strong></span>
+        <a href="/" class="btn btn-outline-primary me-2">返回组卷页</a>
+        <a href="/question-bank" class="btn btn-outline-warning me-2">题库管理</a>
+        <a href="/knowledge-base" class="btn btn-outline-success me-2">知识库管理</a>
+        <a href="/logout" class="btn btn-outline-secondary">退出登录</a>
+      </div>
+    </div>
+
+    <div class="row g-4">
+      <div class="col-lg-5">
+        <div class="card panel-card">
+          <div class="card-body p-4">
+            <h4 class="mb-3">输入需求</h4>
+            <div class="mb-3">
+              <label class="form-label">自然语言指令</label>
+              <textarea id="agentMessage" class="form-control" rows="8" placeholder="例如：请围绕事务管理和并发控制知识点，生成一份12道题的数据库练习卷，单选占80%，多选占20%，难中易比例为2:3:5，不显示答案但要显示知识点。"></textarea>
+            </div>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">试卷标题覆盖</label>
+                <input id="overrideTitle" class="form-control" placeholder="不填则由智能体推断">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">题量覆盖</label>
+                <input id="overrideCount" type="number" min="1" max="200" class="form-control" placeholder="不填则由智能体推断">
+              </div>
+            </div>
+            <div class="row g-3 mt-1">
+              <div class="col-md-6">
+                <div class="form-check mt-2">
+                  <input class="form-check-input" type="checkbox" id="showDifficulty">
+                  <label class="form-check-label" for="showDifficulty">显示难度</label>
+                </div>
+                <div class="form-check mt-2">
+                  <input class="form-check-input" type="checkbox" id="showKnowledge" checked>
+                  <label class="form-check-label" for="showKnowledge">显示知识点</label>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-check mt-2">
+                  <input class="form-check-input" type="checkbox" id="showAnswer" checked>
+                  <label class="form-check-label" for="showAnswer">显示答案</label>
+                </div>
+                <div class="form-check mt-2">
+                  <input class="form-check-input" type="checkbox" id="showAnalysis" checked>
+                  <label class="form-check-label" for="showAnalysis">显示解析</label>
+                </div>
+              </div>
+            </div>
+            <div class="d-flex gap-2 mt-4 flex-wrap">
+              <button id="runAgentBtn" class="btn btn-primary" onclick="runAgentTask()">交给智能体执行</button>
+              <button id="exportBtn" class="btn btn-success" onclick="exportCurrentTask()" disabled>重新导出</button>
+            </div>
+            <div id="agentStatus" class="alert alert-info mt-3 mb-0 d-none"></div>
+          </div>
+        </div>
+
+        <div class="card panel-card mt-4">
+          <div class="card-body p-4">
+            <h4 class="mb-3">已封装工具</h4>
+            <div id="toolCatalog" class="muted-box">正在加载工具目录...</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-7">
+        <div class="card panel-card mb-4">
+          <div class="card-body p-4">
+            <h4 class="mb-3">执行轨迹</h4>
+            <div id="planSummary" class="muted-box mb-3">尚未执行任务。</div>
+            <div id="traceContainer"></div>
+          </div>
+        </div>
+
+        <div class="card panel-card">
+          <div class="card-body p-4">
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+              <h4 class="mb-0">结果预览</h4>
+              <a id="downloadLink" class="btn btn-outline-success d-none" target="_blank">下载当前试卷</a>
+            </div>
+            <div id="previewMeta" class="muted-box mb-3">执行完成后将在这里展示试卷摘要。</div>
+            <div id="previewContainer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentTaskId = null;
+
+    function escapeHtml(value) {
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function setStatus(message, type = 'info') {
+      const box = document.getElementById('agentStatus');
+      box.className = `alert alert-${type} mt-3 mb-0`;
+      box.textContent = message;
+      box.classList.remove('d-none');
+    }
+
+    function collectOverrides() {
+      const overrides = {
+        show_difficulty: document.getElementById('showDifficulty').checked,
+        show_knowledge: document.getElementById('showKnowledge').checked,
+        show_answer: document.getElementById('showAnswer').checked,
+        show_analysis: document.getElementById('showAnalysis').checked,
+      };
+
+      const title = document.getElementById('overrideTitle').value.trim();
+      const count = document.getElementById('overrideCount').value.trim();
+      if (title) overrides.title = title;
+      if (count) overrides.num_questions = Number(count);
+      return overrides;
+    }
+
+    function renderTrace(trace) {
+      const container = document.getElementById('traceContainer');
+      if (!Array.isArray(trace) || trace.length === 0) {
+        container.innerHTML = '<div class="text-muted">暂无执行轨迹。</div>';
+        return;
+      }
+
+      container.innerHTML = trace.map(item => `
+        <div class="trace-item">
+          <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+            <strong>${escapeHtml(item.step)}</strong>
+            <span class="trace-time">${escapeHtml(item.timestamp || '')}</span>
+          </div>
+          <div>${escapeHtml(item.detail || '')}</div>
+        </div>
+      `).join('');
+    }
+
+    function renderQuestionSection(title, questions) {
+      if (!Array.isArray(questions) || questions.length === 0) return '';
+      return `
+        <div class="section-title">${escapeHtml(title)}</div>
+        ${questions.map((question, index) => {
+          const options = Array.isArray(question.options) ? question.options : [];
+          const optionHtml = options.map((option, optionIndex) => {
+            const label = String.fromCharCode(65 + optionIndex);
+            return `<div>${label}. ${escapeHtml(option)}</div>`;
+          }).join('');
+          return `
+            <div class="question-card">
+              <div><strong>${index + 1}. ${escapeHtml(question.big_stem || question.stem || '未命名题目')}</strong></div>
+              ${question.big_stem && question.stem ? `<div class="mt-2">${escapeHtml(question.stem)}</div>` : ''}
+              ${optionHtml ? `<div class="mt-2">${optionHtml}</div>` : ''}
+              <div class="mt-2 text-muted">知识点：${escapeHtml(question.kp_name || question.kp || '未限制')} | 难度：${escapeHtml(question.level || '未标注')}</div>
+            </div>
+          `;
+        }).join('')}
+      `;
+    }
+
+    function renderPreview(preview) {
+      const meta = document.getElementById('previewMeta');
+      const container = document.getElementById('previewContainer');
+      const downloadLink = document.getElementById('downloadLink');
+
+      if (!preview) {
+        meta.textContent = '没有可展示的预览数据。';
+        container.innerHTML = '';
+        downloadLink.classList.add('d-none');
+        return;
+      }
+
+      meta.innerHTML = `
+        <div><strong>标题：</strong>${escapeHtml(preview.title || '')}</div>
+        <div><strong>题量：</strong>${escapeHtml(preview.num_questions || 0)}</div>
+        <div><strong>知识点：</strong>${escapeHtml(preview.kps_display || '未限制')}</div>
+        <div><strong>难度占比：</strong>${escapeHtml(preview.difficulty || '')}</div>
+        <div><strong>题型占比：</strong>${escapeHtml(preview.type_ratio || '')}</div>
+        <div><strong>当前统计：</strong>${escapeHtml(preview.current_stats ? `${preview.current_stats.total}；${preview.current_stats.type}；${preview.current_stats.difficulty}` : '无')}</div>
+      `;
+
+      container.innerHTML = [
+        renderQuestionSection('单选题', preview.selection_single || []),
+        renderQuestionSection('多选题', preview.selection_multi || []),
+        ((!preview.selection_single || preview.selection_single.length === 0) && (!preview.selection_multi || preview.selection_multi.length === 0)) ? renderQuestionSection('题目预览', preview.selection || []) : ''
+      ].join('');
+
+      if (preview.out_path) {
+        downloadLink.href = preview.out_path;
+        downloadLink.classList.remove('d-none');
+      } else {
+        downloadLink.classList.add('d-none');
+      }
+    }
+
+    async function runAgentTask() {
+      const message = document.getElementById('agentMessage').value.trim();
+      if (!message) {
+        setStatus('请输入自然语言组卷需求。', 'warning');
+        return;
+      }
+
+      const runButton = document.getElementById('runAgentBtn');
+      runButton.disabled = true;
+      setStatus('智能体正在分析需求并调用工具，请稍候...', 'info');
+
+      try {
+        const response = await fetch('/api/agent/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message,
+            overrides: collectOverrides(),
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+          throw new Error(data.message || '智能体执行失败');
+        }
+
+        currentTaskId = data.task_id || null;
+        document.getElementById('exportBtn').disabled = !currentTaskId;
+        document.getElementById('planSummary').innerHTML = `
+          <div><strong>选定工具：</strong>${escapeHtml(data.tool || '')}</div>
+          <div><strong>智能体参数：</strong>${escapeHtml(JSON.stringify(data.plan || {}, null, 2))}</div>
+        `.replace(/\n/g, '<br>');
+        renderTrace(data.trace || []);
+        renderPreview(data.preview || null);
+        setStatus('智能体已完成组卷，可以直接预览或重新导出。', 'success');
+      } catch (error) {
+        renderTrace([]);
+        renderPreview(null);
+        document.getElementById('planSummary').textContent = '本次执行未成功完成。';
+        setStatus(error.message || '执行失败', 'danger');
+      } finally {
+        runButton.disabled = false;
+      }
+    }
+
+    async function exportCurrentTask() {
+      if (!currentTaskId) {
+        setStatus('当前没有可导出的任务。', 'warning');
+        return;
+      }
+
+      const exportButton = document.getElementById('exportBtn');
+      exportButton.disabled = true;
+      setStatus('正在重新导出试卷...', 'info');
+
+      try {
+        const response = await fetch(`/api/agent/tasks/${encodeURIComponent(currentTaskId)}/export`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(collectOverrides()),
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+          throw new Error(data.message || '导出失败');
+        }
+
+        const downloadLink = document.getElementById('downloadLink');
+        if (data.export && data.export.file_url) {
+          downloadLink.href = data.export.file_url;
+          downloadLink.classList.remove('d-none');
+        }
+        setStatus('试卷已重新导出。', 'success');
+      } catch (error) {
+        setStatus(error.message || '导出失败', 'danger');
+      } finally {
+        exportButton.disabled = false;
+      }
+    }
+
+    async function loadToolCatalog() {
+      const target = document.getElementById('toolCatalog');
+      try {
+        const response = await fetch('/api/agent/tools');
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+          throw new Error(data.message || '加载工具目录失败');
+        }
+        target.innerHTML = data.tools.map(tool => `
+          <div class="mb-2">
+            <span class="tool-chip">${escapeHtml(tool.name)}</span>
+            <span>${escapeHtml(tool.description || '')}</span>
+            <div class="text-muted small mt-1">${escapeHtml(tool.invoke ? `${tool.invoke.method} ${tool.invoke.path}` : '')}</div>
+          </div>
+        `).join('');
+      } catch (error) {
+        target.textContent = error.message || '加载失败';
+      }
+    }
+
+    loadToolCatalog();
+  </script>
+</body>
+</html>

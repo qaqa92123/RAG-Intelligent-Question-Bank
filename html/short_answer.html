@@ -1,0 +1,2095 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <!-- Version: 2026-03-30-v1 -->
+  <title>{{ module.name if module else '综合题生成' }}</title>
+  <link rel="stylesheet" href="/assets/css/graindashboard.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+  <style>
+    body{padding:30px;background:#f8f9fa}
+    #er-diagram-container {
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      padding: 20px;
+      background: white;
+      margin-top: 20px;
+    }
+    #er-canvas {
+      border: 1px solid #ccc;
+      background: white;
+      display: block;
+      margin: 20px auto;
+    }
+    .entity-box {
+      border: 2px solid #0d6efd;
+      border-radius: 6px;
+      padding: 15px;
+      margin: 10px;
+      background: #e7f1ff;
+    }
+    .relationship-box {
+      border: 2px solid #198754;
+      border-radius: 6px;
+      padding: 15px;
+      margin: 10px;
+      background: #d1e7dd;
+    }
+    .attribute-item {
+      padding: 5px 10px;
+      margin: 3px 0;
+      background: white;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    .primary-key {
+      font-weight: bold;
+      color: #dc3545;
+    }
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #6c757d;
+    }
+    .module-meta-card {
+      border: none;
+      border-radius: 16px;
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+      margin-bottom: 24px;
+    }
+    .module-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+    }
+    .module-meta-item {
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+    }
+    .module-meta-label {
+      display: block;
+      color: #64748b;
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+    .module-meta-value {
+      color: #0f172a;
+      font-size: 15px;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <div>
+        <div class="text-muted small mb-1">综合题生成 / 子模块</div>
+        <h1 class="mb-0">{{ module.name if module else '综合题生成' }}</h1>
+      </div>
+      <div>
+        <span class="me-3">欢迎，<strong>{{ user.username }}</strong></span>
+        <a href="/short-answer" class="btn btn-outline-primary me-2">返回模块列表</a>
+        <a href="/" class="btn btn-outline-secondary">返回首页</a>
+      </div>
+    </div>
+
+    <div class="card module-meta-card">
+      <div class="card-body">
+        <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-start">
+          <div class="flex-grow-1">
+            <h5 class="card-title mb-2">模块说明</h5>
+            <p class="card-text text-muted mb-3">{{ module.summary if module else '当前页面用于数据库大题题型生成。' }}</p>
+            <div class="module-meta-grid">
+              <div class="module-meta-item">
+                <span class="module-meta-label">分值</span>
+                <span class="module-meta-value">{{ module.score if module else '20分' }}</span>
+              </div>
+              <div class="module-meta-item">
+                <span class="module-meta-label">所有问题数量</span>
+                <span class="module-meta-value">{{ module.question_total if module else '3小题' }}</span>
+              </div>
+              <div class="module-meta-item">
+                <span class="module-meta-label">填空数量</span>
+                <span class="module-meta-value">{{ module.blank_total if module else '动态生成' }}</span>
+              </div>
+              <div class="module-meta-item">
+                <span class="module-meta-label">选择数量</span>
+                <span class="module-meta-value">{{ module.choice_total if module else '0题' }}</span>
+              </div>
+              <div class="module-meta-item">
+                <span class="module-meta-label">题型</span>
+                <span class="module-meta-value">{{ module.question_type if module else '数据库设计简答与填空' }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">进入题型生成</h5>
+        <p class="card-text">点击下方按钮，使用 AI 生成该模块所需的 E-R 图、题干与数据库设计填空内容。</p>
+        
+        <div class="row mb-3">
+          <div class="col-md-4">
+            <label for="entity-count-select" class="form-label">实体数量</label>
+            <select class="form-select" id="entity-count-select">
+              <option value="2">2个实体</option>
+              <option value="3" selected>3个实体</option>
+            </select>
+          </div>
+          
+          <div class="col-md-4">
+            <label for="relationship-count-select" class="form-label">关系数量</label>
+            <select class="form-select" id="relationship-count-select">
+              <option value="1">1个关系</option>
+              <option value="2" selected>2个关系</option>
+              <option value="3">3个关系</option>
+            </select>
+          </div>
+          
+          <div class="col-md-4">
+            <label for="attribute-count-select" class="form-label">属性总数</label>
+            <select class="form-select" id="attribute-count-select">
+              <option value="8">8个属性</option>
+              <option value="10">10个属性</option>
+              <option value="12" selected>12个属性</option>
+              <option value="15">15个属性</option>
+              <option value="20">20个属性</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row mb-3">
+          <div class="col-md-4">
+            <label for="scenario-select" class="form-label">业务场景</label>
+            <select class="form-select" id="scenario-select">
+              <option value="medical">医疗</option>
+              <option value="education">教育</option>
+              <option value="train">火车</option>
+              <option value="flight">飞机</option>
+              <option value="hotel">酒店</option>
+              <option value="ticketing">订票</option>
+              <option value="random" selected>随机</option>
+            </select>
+          </div>
+        </div>
+        
+        <button class="btn btn-primary" id="generate-er-btn">
+          <span id="btn-text">生成 E-R 图</span>
+          <span id="btn-spinner" class="spinner-border spinner-border-sm ms-2 d-none" role="status"></span>
+        </button>
+      </div>
+    </div>
+
+    <div id="er-diagram-container" class="d-none">
+      <h5 class="mb-3">生成的 E-R 图</h5>
+      <div class="mb-3">
+        <button class="btn btn-sm btn-warning" id="edit-btn">编辑</button>
+        <button class="btn btn-sm btn-success d-none" id="save-btn">保存</button>
+        <button class="btn btn-sm btn-secondary d-none" id="cancel-btn">取消</button>
+        <button class="btn btn-sm btn-primary d-none" id="next-step-btn">下一步，生成题干</button>
+      </div>
+      <canvas id="er-canvas" width="1200" height="900"></canvas>
+      <div class="mt-3">
+        <button class="btn btn-secondary btn-sm" id="download-btn">下载图片</button>
+      </div>
+      <hr>
+      <h6 class="mt-3">结构详情</h6>
+      <div id="er-content"></div>
+    </div>
+
+    <!-- 题干生成区域 -->
+    <div id="question-stem-container" class="d-none">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5>题干生成</h5>
+        <button class="btn btn-sm btn-secondary" id="back-btn">返回上一步</button>
+      </div>
+      <div id="question-stem-content">
+        <div class="text-center py-5">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">正在生成...</span>
+          </div>
+          <p class="mt-3">正在生成题干，请稍候...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const generateBtn = document.getElementById('generate-er-btn');
+      const btnText = document.getElementById('btn-text');
+      const btnSpinner = document.getElementById('btn-spinner');
+      const erContainer = document.getElementById('er-diagram-container');
+      const erContent = document.getElementById('er-content');
+      const canvas = document.getElementById('er-canvas');
+      const ctx = canvas.getContext('2d');
+      const downloadBtn = document.getElementById('download-btn');
+      const entityCountSelect = document.getElementById('entity-count-select');
+      const relationshipCountSelect = document.getElementById('relationship-count-select');
+      const attributeCountSelect = document.getElementById('attribute-count-select');
+      const scenarioSelect = document.getElementById('scenario-select');
+      const editBtn = document.getElementById('edit-btn');
+      const saveBtn = document.getElementById('save-btn');
+      const cancelBtn = document.getElementById('cancel-btn');
+      const nextStepBtn = document.getElementById('next-step-btn');
+      const backBtn = document.getElementById('back-btn');
+      const questionStemContainer = document.getElementById('question-stem-container');
+      const questionStemContent = document.getElementById('question-stem-content');
+      const moduleSlug = '{{ module.slug if module else "database-big-question-type-1" }}';
+
+      let currentERData = null;
+      let isEditMode = false;
+      let editBackup = null;
+      let clickableElements = []; // 存储可点击元素的位置信息
+      
+      // 根据实体数量和关系数量动态更新属性数量选项
+      function updateOptions() {
+        const entityCount = parseInt(entityCountSelect.value);
+        
+        // 更新关系数量选项
+        const oldRelCount = relationshipCountSelect.value;
+        relationshipCountSelect.innerHTML = '';
+        if (entityCount === 2) {
+          // 2个实体只能1个关系
+          relationshipCountSelect.innerHTML = '<option value="1">1个关系</option>';
+        } else if (entityCount === 3) {
+          // 3个实体可选2或3个关系（不允许1个关系）
+          relationshipCountSelect.innerHTML = `
+            <option value="2" ${oldRelCount === '2' ? 'selected' : ''}>2个关系</option>
+            <option value="3" ${oldRelCount === '3' ? 'selected' : ''}>3个关系</option>
+          `;
+        }
+        
+        // 获取当前关系数量
+        const currentRelCount = parseInt(relationshipCountSelect.value);
+        
+        // 计算属性范围（每个实体/关系最多4个属性，关系可以0个）
+        const minAttr = entityCount; // 每个实体至少1个主键
+        const maxAttr = entityCount * 4 + currentRelCount * 4;
+        
+        updateAttributeOptions(minAttr, maxAttr);
+      }
+      
+      // 单独的属性更新函数，用于关系数量变化时
+      function updateAttributesOnly() {
+        const entityCount = parseInt(entityCountSelect.value);
+        const currentRelCount = parseInt(relationshipCountSelect.value);
+        const minAttr = entityCount;
+        const maxAttr = entityCount * 4 + currentRelCount * 4;
+        updateAttributeOptions(minAttr, maxAttr);
+      }
+      
+      // 监听实体数量变化
+      entityCountSelect.addEventListener('change', updateOptions);
+      
+      // 监听关系数量变化（只更新属性）
+      relationshipCountSelect.addEventListener('change', updateAttributesOnly);
+      
+      // 页面加载时初始化选项
+      updateOptions();
+      
+      function updateAttributeOptions(min, max) {
+        attributeCountSelect.innerHTML = '';
+        const options = [];
+        // 生成选项：从min开始，每次+2，直到max
+        for (let i = Math.max(min, 8); i <= max; i += 2) {
+          options.push(i);
+        }
+        // 确保包含最大值
+        if (!options.includes(max) && max >= min) {
+          options.push(max);
+        }
+        // 确保至少有一些合理的默认选项
+        if (options.length === 0) {
+          options.push(min, Math.floor((min + max) / 2), max);
+        }
+        options.sort((a, b) => a - b);
+        const defaultVal = options[Math.floor(options.length / 2)] || options[0];
+        options.forEach(num => {
+          const selected = num === defaultVal ? 'selected' : '';
+          attributeCountSelect.innerHTML += `<option value="${num}" ${selected}>${num}个属性</option>`;
+        });
+      }
+
+      generateBtn.addEventListener('click', async () => {
+        // 重置题干生成区域状态
+        if (questionStemContainer) {
+          questionStemContainer.classList.add('d-none');
+        }
+        if (typeof editBtn !== 'undefined' && editBtn) {
+          editBtn.classList.remove('d-none');
+        }
+        if (typeof nextStepBtn !== 'undefined' && nextStepBtn) {
+          nextStepBtn.classList.add('d-none');
+        }
+
+        // 显示加载状态
+        generateBtn.disabled = true;
+        btnText.textContent = '生成中...';
+        btnSpinner.classList.remove('d-none');
+        erContainer.classList.add('d-none');
+        erContent.innerHTML = '';
+
+        try {
+          const entityCount = entityCountSelect.value;
+          const relationshipCount = relationshipCountSelect.value;
+          const attributeCount = attributeCountSelect.value;
+          const scenario = scenarioSelect ? scenarioSelect.value : 'random';
+          
+          const response = await fetch('/generate-er-diagram', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ entityCount, relationshipCount, attributeCount, scenario })
+          });
+
+          const result = await response.json();
+
+          if (result.success) {
+            currentERData = result.data;
+            // 绘制 E-R 图
+            drawERDiagram(result.data);
+            // 显示结构详情
+            displayERDiagram(result.data);
+            erContainer.classList.remove('d-none');
+            // 生成成功后直接显示下一步按钮，允许直接进入题干生成
+            if (typeof nextStepBtn !== 'undefined' && nextStepBtn) {
+              nextStepBtn.classList.remove('d-none');
+            }
+          } else {
+            alert('生成失败: ' + result.message);
+          }
+        } catch (error) {
+          console.error('Error:', error);
+          alert('生成失败: ' + error.message);
+        } finally {
+          // 恢复按钮状态
+          generateBtn.disabled = false;
+          btnText.textContent = '生成 E-R 图';
+          btnSpinner.classList.add('d-none');
+        }
+      });
+
+      downloadBtn.addEventListener('click', () => {
+        const link = document.createElement('a');
+        link.download = 'er-diagram.png';
+        link.href = canvas.toDataURL();
+        link.click();
+      });
+      
+      // 编辑模式切换
+      editBtn.addEventListener('click', () => {
+        isEditMode = true;
+        editBackup = JSON.parse(JSON.stringify(currentERData)); // 深拷贝备份
+        editBtn.classList.add('d-none');
+        saveBtn.classList.remove('d-none');
+        cancelBtn.classList.remove('d-none');
+        canvas.style.cursor = 'pointer';
+      });
+      
+      saveBtn.addEventListener('click', () => {
+        isEditMode = false;
+        editBackup = null;
+        editBtn.classList.remove('d-none');
+        saveBtn.classList.add('d-none');
+        cancelBtn.classList.add('d-none');
+        nextStepBtn.classList.remove('d-none');
+        canvas.style.cursor = 'default';
+        // 重新绘制并更新详情
+        drawERDiagram(currentERData);
+        displayERDiagram(currentERData);
+      });
+      
+      cancelBtn.addEventListener('click', () => {
+        isEditMode = false;
+        currentERData = editBackup; // 恢复备份
+        editBackup = null;
+        editBtn.classList.remove('d-none');
+        saveBtn.classList.add('d-none');
+        cancelBtn.classList.add('d-none');
+        canvas.style.cursor = 'default';
+        // 重新绘制
+        drawERDiagram(currentERData);
+      });
+      
+      // Canvas点击事件处理编辑
+      canvas.addEventListener('click', (e) => {
+        if (!isEditMode) return;
+        
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        // 检测点击的元素并编辑
+        checkAndEditElement(x, y);
+      });
+      
+      function checkAndEditElement(x, y) {
+        // 检查点击是否在某个元素上
+        for (let elem of clickableElements) {
+          if (x >= elem.x && x <= elem.x + elem.width &&
+              y >= elem.y && y <= elem.y + elem.height) {
+            // 找到被点击的元素
+            const typeName = elem.type === 'entity' ? '实体' : 
+                           elem.type === 'relationship' ? '关系' : '属性';
+            const currentName = elem.data.name;
+            const newName = prompt(`请输入新的${typeName}名称：`, currentName);
+            
+            if (newName && newName.trim() !== '' && newName !== currentName) {
+              // 更新数据
+              elem.data.name = newName.trim();
+              
+              // 重绘画布
+              drawERDiagram(currentERData);
+              
+              // 更新详情显示
+              displayERDiagram(currentERData);
+            }
+            break;
+          }
+        }
+      }
+
+      // 自动裁剪画布空白区域
+      function autoCropCanvas() {
+        if (clickableElements.length === 0) return;
+        
+        // Initialize bounds
+        let minX = canvas.width;
+        let minY = canvas.height;
+        let maxX = 0;
+        let maxY = 0;
+        
+        clickableElements.forEach(elem => {
+          minX = Math.min(minX, elem.x);
+          minY = Math.min(minY, elem.y);
+          maxX = Math.max(maxX, elem.x + elem.width);
+          maxY = Math.max(maxY, elem.y + elem.height);
+        });
+        
+        // Add padding
+        const padding = 50; 
+        minX = Math.max(0, minX - padding);
+        minY = Math.max(0, minY - padding);
+        maxX = Math.min(1200, maxX + padding); // Use original width/height as max bounds
+        maxY = Math.min(900, maxY + padding);
+        
+        const cropWidth = maxX - minX;
+        const cropHeight = maxY - minY;
+        
+        if (cropWidth <= 0 || cropHeight <= 0) return;
+
+        // Get image data from the calculated bounds
+        // Note: We capture from the current canvas context before resizing
+        const imageData = ctx.getImageData(minX, minY, cropWidth, cropHeight);
+        
+        // Resize canvas to match the cropped content
+        canvas.width = cropWidth;
+        canvas.height = cropHeight;
+        
+        // Draw the image data back to the (0,0) of the resized canvas
+        ctx.putImageData(imageData, 0, 0);
+        
+        // Shift all clickable element coordinates
+        clickableElements.forEach(elem => {
+          elem.x -= minX;
+          elem.y -= minY;
+        });
+      }
+
+      function drawERDiagram(data) {
+        // 重置画布尺寸以保证布局计算基于固定的中心点
+        canvas.width = 1200;
+        canvas.height = 900;
+
+        // 清空画布
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // 清空可点击元素列表
+        clickableElements = [];
+        
+        const entities = data.entities || [];
+        const relationships = data.relationships || [];
+        
+        if (entities.length === 3) {
+          drawThreeEntityLayout(entities, relationships);
+        } else if (entities.length === 2) {
+          drawTwoEntityLayout(entities, relationships);
+        }
+        
+        // 绘制完成后裁剪空白
+        autoCropCanvas();
+      }
+
+      function buildRelationshipVisuals(entityBoxes, relationships) {
+        const allLines = [];
+        const allAttributes = [];
+        const relationshipShapes = [];
+        const cardinalityLabels = [];
+        const entityBoxByName = new Map(entityBoxes.map(box => [box.entity.name, box]));
+
+        function hasAttributeOverlap(x, y) {
+          const minDX = 112;
+          const minDY = 38;
+          return allAttributes.some(item => Math.abs(item.x - x) < minDX && Math.abs(item.y - y) < minDY);
+        }
+
+        relationships.forEach((rel, relIdx) => {
+          const entityBox1 = entityBoxByName.get(rel.entity1);
+          const entityBox2 = entityBoxByName.get(rel.entity2);
+          if (!entityBox1 || !entityBox2 || entityBox1 === entityBox2) return;
+
+          const midX = (entityBox1.pos.x + entityBox2.pos.x) / 2;
+          const midY = (entityBox1.pos.y + entityBox2.pos.y) / 2;
+          const dx = entityBox2.pos.x - entityBox1.pos.x;
+          const dy = entityBox2.pos.y - entityBox1.pos.y;
+          const distance = Math.hypot(dx, dy) || 1;
+          const normalX = -dy / distance;
+          const normalY = dx / distance;
+          const tangentX = dx / distance;
+          const tangentY = dy / distance;
+          const labelOffset = 22;
+          const relAttrs = rel.attributes || [];
+          const centerX = canvas.width / 2;
+          const centerDeadband = 50;
+          const isLeftEdgeRelationship = midX < centerX - centerDeadband;
+          const isRightEdgeRelationship = midX > centerX + centerDeadband;
+          const isTwoEntityCenteredRelationship = entityBoxes.length === 2 && !isLeftEdgeRelationship && !isRightEdgeRelationship;
+
+          // 左侧关系属性向左纵排，右侧关系属性向右纵排，其余关系保持下方稳定排布
+          let attrNormalX;
+          let attrNormalY;
+          let attrTangentX;
+          let attrTangentY;
+          let attributeOffset;
+          let attributeSpacing;
+
+          if (isLeftEdgeRelationship) {
+            attrNormalX = -1;
+            attrNormalY = 0;
+            attrTangentX = 0;
+            attrTangentY = 1;
+            attributeOffset = 120;
+            attributeSpacing = 52;
+          } else if (isRightEdgeRelationship) {
+            attrNormalX = 1;
+            attrNormalY = 0;
+            attrTangentX = 0;
+            attrTangentY = 1;
+            attributeOffset = 120;
+            attributeSpacing = 52;
+          } else if (isTwoEntityCenteredRelationship) {
+            attrNormalX = 0;
+            attrNormalY = 0;
+            attrTangentX = 0;
+            attrTangentY = 1;
+            attributeOffset = 130;
+            attributeSpacing = 52;
+          } else if (Math.abs(normalY) < 0.2) {
+            attrNormalX = 0;
+            attrNormalY = 1;
+            attrTangentX = 1;
+            attrTangentY = 0;
+            attributeOffset = 95;
+            attributeSpacing = 112;
+          } else {
+            const side = normalY >= 0 ? 1 : -1;
+            attrNormalX = normalX * side;
+            attrNormalY = normalY * side;
+            attrTangentX = tangentX;
+            attrTangentY = tangentY;
+            attributeOffset = 95;
+            attributeSpacing = 112;
+          }
+
+          relationshipShapes.push({ rel, x: midX, y: midY });
+          allLines.push({ x1: entityBox1.pos.x, y1: entityBox1.pos.y, x2: midX, y2: midY });
+          allLines.push({ x1: entityBox2.pos.x, y1: entityBox2.pos.y, x2: midX, y2: midY });
+
+          const parts = String(rel.cardinality || '1:N').split(':');
+          const card1 = (parts[0] || '1').trim();
+          const card2 = (parts[1] || 'N').trim();
+
+          function buildCardinalityLabel(entityPos, text) {
+            const baseX = (entityPos.x + midX) / 2;
+            const baseY = (entityPos.y + midY) / 2;
+
+            if (isLeftEdgeRelationship) {
+              // 左侧边的基数标注放到三角形内部（边的右侧）
+              const toCenterX = centerX - baseX;
+              const toCenterY = canvas.height / 2 - baseY;
+              const toCenterLen = Math.hypot(toCenterX, toCenterY) || 1;
+              return {
+                text,
+                x: baseX + (toCenterX / toCenterLen) * labelOffset,
+                y: baseY + (toCenterY / toCenterLen) * labelOffset
+              };
+            }
+
+            return {
+              text,
+              x: baseX + normalX * labelOffset,
+              y: baseY + normalY * labelOffset
+            };
+          }
+
+          cardinalityLabels.push(buildCardinalityLabel(entityBox1.pos, card1));
+          cardinalityLabels.push(buildCardinalityLabel(entityBox2.pos, card2));
+
+          function pushRelationshipAttribute(attr, ax, ay, pushX = 0, pushY = 1) {
+            let finalX = ax;
+            let finalY = ay;
+
+            // 轻量防重叠：若与已放置的关系属性过近，则沿当前列方向继续外推
+            let guard = 0;
+            while (hasAttributeOverlap(finalX, finalY) && guard < 6) {
+              finalX += pushX * 28;
+              finalY += pushY * 28;
+              guard += 1;
+            }
+
+            allAttributes.push({ attr, x: finalX, y: finalY });
+            allLines.push({ x1: midX, y1: midY, x2: finalX, y2: finalY });
+          }
+
+          if (isTwoEntityCenteredRelationship) {
+            const leftAttrs = [];
+            const rightAttrs = [];
+
+            relAttrs.forEach((attr, attrIdx) => {
+              if (attrIdx % 2 === 0) {
+                leftAttrs.push(attr);
+              } else {
+                rightAttrs.push(attr);
+              }
+            });
+
+            function layoutRelationshipColumn(attrs, side) {
+              const startY = midY - ((attrs.length - 1) * attributeSpacing) / 2;
+              attrs.forEach((attr, idx) => {
+                const ax = midX + side * attributeOffset;
+                const ay = startY + idx * attributeSpacing;
+                pushRelationshipAttribute(attr, ax, ay, 0, 1);
+              });
+            }
+
+            layoutRelationshipColumn(leftAttrs, -1);
+            layoutRelationshipColumn(rightAttrs, 1);
+          } else {
+            const startOffset = -((relAttrs.length - 1) * attributeSpacing) / 2;
+            relAttrs.forEach((attr, attrIdx) => {
+              const offset = startOffset + attrIdx * attributeSpacing;
+              const ax = midX + attrNormalX * attributeOffset + attrTangentX * offset;
+              const ay = midY + attrNormalY * attributeOffset + attrTangentY * offset;
+              pushRelationshipAttribute(attr, ax, ay, attrNormalX, attrNormalY || 1);
+            });
+          }
+        });
+
+        return { allLines, allAttributes, relationshipShapes, cardinalityLabels };
+      }
+
+      function drawThreeEntityLayout(entities, relationships) {
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const radius = 250;
+        
+        // 三个实体呈三角形分布
+        const entityPositions = [
+          { x: centerX, y: centerY - radius },           // 上
+          { x: centerX - radius * 0.866, y: centerY + radius * 0.5 }, // 左下
+          { x: centerX + radius * 0.866, y: centerY + radius * 0.5 }  // 右下
+        ];
+        
+        const entityBoxes = [];
+        const allLines = []; // 收集所有连线，最后统一绘制
+        const allAttributes = []; // 收集所有属性
+        
+        // 准备实体和属性数据
+        entities.forEach((entity, idx) => {
+          if (idx >= 3) return;
+          const pos = entityPositions[idx];
+          entityBoxes.push({ entity, pos });
+          
+          // 准备属性位置
+          const attrs = entity.attributes || [];
+          
+          if (idx === 0) {
+            // 顶部实体：属性向上横向排列
+            const attrSpacing = 110;
+            const totalWidth = (attrs.length - 1) * attrSpacing;
+            const startX = pos.x - totalWidth / 2;
+            
+            attrs.forEach((attr, aidx) => {
+              const ax = startX + aidx * attrSpacing;
+              const ay = pos.y - 100;
+              allAttributes.push({ attr, x: ax, y: ay });
+              allLines.push({ x1: pos.x, y1: pos.y, x2: ax, y2: ay });
+            });
+          } else if (idx === 1) {
+            // 左下实体：属性向左纵向排列
+            const attrSpacing = 50;
+            const totalHeight = (attrs.length - 1) * attrSpacing;
+            const startY = pos.y - totalHeight / 2;
+            
+            attrs.forEach((attr, aidx) => {
+              const ax = pos.x - 150;
+              const ay = startY + aidx * attrSpacing;
+              allAttributes.push({ attr, x: ax, y: ay });
+              allLines.push({ x1: pos.x, y1: pos.y, x2: ax, y2: ay });
+            });
+          } else if (idx === 2) {
+            // 右下实体：属性向右纵向排列
+            const attrSpacing = 50;
+            const totalHeight = (attrs.length - 1) * attrSpacing;
+            const startY = pos.y - totalHeight / 2;
+            
+            attrs.forEach((attr, aidx) => {
+              const ax = pos.x + 150;
+              const ay = startY + aidx * attrSpacing;
+              allAttributes.push({ attr, x: ax, y: ay });
+              allLines.push({ x1: pos.x, y1: pos.y, x2: ax, y2: ay });
+            });
+          }
+        });
+        
+        const relationshipVisuals = buildRelationshipVisuals(entityBoxes, relationships);
+        allLines.push(...relationshipVisuals.allLines);
+        allAttributes.push(...relationshipVisuals.allAttributes);
+        const relationshipShapes = relationshipVisuals.relationshipShapes;
+        const cardinalityLabels = relationshipVisuals.cardinalityLabels;
+        
+        // 绘制顺序：1.连线 2.属性 3.关系 4.实体 5.关系类型标注
+        allLines.forEach(line => {
+          drawLine(line.x1, line.y1, line.x2, line.y2);
+        });
+        
+        allAttributes.forEach(item => {
+          drawAttribute(item.attr, item.x, item.y);
+        });
+        
+        relationshipShapes.forEach(item => {
+          drawRelationship(item.rel, item.x, item.y);
+        });
+        
+        entityBoxes.forEach(box => {
+          drawEntity(box.entity, box.pos.x, box.pos.y);
+        });
+        
+        cardinalityLabels.forEach(label => {
+          drawCardinalityLabel(label.text, label.x, label.y);
+        });
+      }
+
+      function drawTwoEntityLayout(entities, relationships) {
+        const centerX = canvas.width / 2;
+        const spacing = 300;
+        
+        // 两个实体纵向分布
+        const entityPositions = [
+          { x: centerX, y: canvas.height / 2 - spacing / 2 },  // 上
+          { x: centerX, y: canvas.height / 2 + spacing / 2 }   // 下
+        ];
+        
+        const entityBoxes = [];
+        const allLines = [];
+        const allAttributes = [];
+        
+        // 准备实体和属性数据
+        entities.forEach((entity, idx) => {
+          if (idx >= 2) return;
+          const pos = entityPositions[idx];
+          entityBoxes.push({ entity, pos });
+          
+          // 属性横向排列
+          const attrs = entity.attributes || [];
+          const attrSpacing = 110;
+          const totalWidth = (attrs.length - 1) * attrSpacing;
+          const startX = pos.x - totalWidth / 2;
+          
+          attrs.forEach((attr, aidx) => {
+            const ax = startX + aidx * attrSpacing;
+            let ay;
+            if (idx === 0) {
+              // 第一个实体（上方）：属性向上横向排列
+              ay = pos.y - 100;
+            } else {
+              // 第二个实体（下方）：属性向下横向排列
+              ay = pos.y + 100;
+            }
+            
+            allAttributes.push({ attr, x: ax, y: ay });
+            allLines.push({ x1: pos.x, y1: pos.y, x2: ax, y2: ay });
+          });
+        });
+        
+        const relationshipVisuals = buildRelationshipVisuals(entityBoxes, relationships.slice(0, 1));
+        allLines.push(...relationshipVisuals.allLines);
+        allAttributes.push(...relationshipVisuals.allAttributes);
+        const relationshipShapes = relationshipVisuals.relationshipShapes;
+        const cardinalityLabels = relationshipVisuals.cardinalityLabels;
+        
+        // 绘制顺序：1.连线 2.属性 3.关系 4.实体 5.关系类型标注
+        allLines.forEach(line => {
+          drawLine(line.x1, line.y1, line.x2, line.y2);
+        });
+        
+        allAttributes.forEach(item => {
+          drawAttribute(item.attr, item.x, item.y);
+        });
+        
+        relationshipShapes.forEach(item => {
+          drawRelationship(item.rel, item.x, item.y);
+        });
+        
+        entityBoxes.forEach(box => {
+          drawEntity(box.entity, box.pos.x, box.pos.y);
+        });
+        
+        cardinalityLabels.forEach(label => {
+          drawCardinalityLabel(label.text, label.x, label.y);
+        });
+      }
+
+      function drawEntity(entity, x, y) {
+        const width = 140;
+        const height = 50;
+        
+        // 绘制矩形
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 2;
+        ctx.fillStyle = 'white';
+        ctx.fillRect(x - width/2, y - height/2, width, height);
+        ctx.strokeRect(x - width/2, y - height/2, width, height);
+        
+        // 绘制文字
+        ctx.fillStyle = 'black';
+        ctx.font = 'bold 16px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(entity.name, x, y);
+        
+        // 记录可点击区域
+        clickableElements.push({
+          type: 'entity',
+          data: entity,
+          x: x - width/2,
+          y: y - height/2,
+          width: width,
+          height: height
+        });
+        
+        return { x, y, width, height };
+      }
+
+      function drawRelationship(rel, x, y) {
+        const width = 100;  // 左右拉伸
+        const height = 50;  // 上下压缩
+        
+        // 绘制扁菱形
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 2;
+        ctx.fillStyle = 'white';
+        
+        ctx.beginPath();
+        ctx.moveTo(x, y - height/2);      // 上顶点
+        ctx.lineTo(x + width/2, y);       // 右顶点
+        ctx.lineTo(x, y + height/2);      // 下顶点
+        ctx.lineTo(x - width/2, y);       // 左顶点
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        
+        // 绘制关系名（只显示名称，不显示基数）
+        ctx.fillStyle = 'black';
+        ctx.font = 'bold 14px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(rel.name, x, y);
+        
+        // 记录可点击区域（使用外接矩形）
+        clickableElements.push({
+          type: 'relationship',
+          data: rel,
+          x: x - width/2,
+          y: y - height/2,
+          width: width,
+          height: height
+        });
+        
+        return { x, y, width, height };
+      }
+
+      function drawCardinalityLabel(text, x, y) {
+        // 绘制关系类型标注（在连线旁边）
+        ctx.fillStyle = 'black';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, x, y);
+      }
+
+      function drawAttribute(attr, x, y) {
+        const width = 100;
+        const height = 30;
+        
+        // 绘制椭圆
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 1.5;
+        ctx.fillStyle = 'white';
+        
+        ctx.beginPath();
+        ctx.ellipse(x, y, width/2, height/2, 0, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.stroke();
+        
+        // 如果是主键，使用下划线
+        ctx.fillStyle = 'black';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        const text = attr.name;
+        ctx.fillText(text, x, y);
+        
+        if (attr.isPrimaryKey) {
+          const metrics = ctx.measureText(text);
+          ctx.beginPath();
+          ctx.moveTo(x - metrics.width/2, y + 8);
+          ctx.lineTo(x + metrics.width/2, y + 8);
+          ctx.stroke();
+        }
+        
+        // 记录可点击区域
+        clickableElements.push({
+          type: 'attribute',
+          data: attr,
+          x: x - width/2,
+          y: y - height/2,
+          width: width,
+          height: height
+        });
+      }
+
+      function drawLine(x1, y1, x2, y2) {
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
+
+      // 辅助函数：格式化约束显示
+      function formatConstraint(constraint) {
+        if (!constraint) return '';
+        const c = constraint.toUpperCase();
+        if (c.includes('PRIMARY KEY')) return '主键';
+        if (c.includes('NOT NULL')) return '不允许为空';
+        if (c.includes('NULL')) return '允许为空';
+        return constraint;
+      }
+
+      function displayERDiagram(data) {
+        let html = '';
+
+        // 显示实体
+        if (data.entities && data.entities.length > 0) {
+          html += '<h6 class="mt-3 mb-2">实体 (Entities)</h6>';
+          html += '<div class="row">';
+          data.entities.forEach(entity => {
+            html += `<div class="col-md-6 mb-3">`;
+            html += `<div class="card"><div class="card-header bg-white fw-bold border-bottom-0 pb-0">${entity.name}</div>`;
+            html += `<div class="card-body pt-2">`;
+            html += `<table class="table table-bordered table-sm mb-0" style="font-size: 14px;">`;
+            html += `<thead><tr class="table-light"><th>属性名</th><th>类型</th><th>主键</th></tr></thead><tbody>`;
+            entity.attributes.forEach(attr => {
+              const marker = attr.isPrimaryKey ? '是' : '';
+              html += `<tr><td>${attr.name}</td><td>${normalizeDataType(attr.type)}</td><td>${marker}</td></tr>`;
+            });
+            html += `</tbody></table></div></div></div>`;
+          });
+          html += '</div>';
+        }
+
+        // 显示关系
+        if (data.relationships && data.relationships.length > 0) {
+          html += '<h6 class="mt-3 mb-2">关系 (Relationships)</h6>';
+          html += '<div class="row">';
+          data.relationships.forEach(rel => {
+            html += `<div class="col-md-6 mb-3">`;
+            html += `<div class="card"><div class="card-header bg-white fw-bold border-bottom-0 pb-0">${rel.name} (${rel.entity1} ↔ ${rel.entity2})</div>`;
+            html += `<div class="card-body pt-2">`;
+            html += `<p class="mb-2 text-muted small">基数: ${rel.cardinality}</p>`;
+            if (rel.attributes && rel.attributes.length > 0) {
+              html += `<table class="table table-bordered table-sm mb-0" style="font-size: 14px;">`;
+              html += `<thead><tr class="table-light"><th>属性名</th><th>类型</th></tr></thead><tbody>`;
+              rel.attributes.forEach(attr => {
+                html += `<tr><td>${attr.name}</td><td>${normalizeDataType(attr.type)}</td></tr>`;
+              });
+              html += `</tbody></table>`;
+            } else {
+               html += `<p class="text-muted small mb-0">无属性</p>`;
+            }
+            html += `</div></div></div>`;
+          });
+          html += '</div>';
+        }
+
+        erContent.innerHTML = html;
+      }
+
+      // 存储原始未挖空的ER数据
+      let originalERDataBackup = null;
+      // 存储生成后的题目数据，用于导出
+      let generatedPaperData = null;
+
+      function normalizeDataType(typeText) {
+        return String(typeText || '').trim().toLowerCase();
+      }
+
+      function sanitizeGeneratedText(text) {
+        return String(text || '')
+          .replace(/[\u200b-\u200f\ufeff\u2060]/g, '')
+          .replace(/\u00a0/g, ' ')
+          .trim();
+      }
+
+      function normalizeTableDescriptionLabel(description) {
+        const text = sanitizeGeneratedText(description);
+        const normalized = text
+          .replace(/[（(]\s*[1MN]\s*:\s*[1MN]\s*[)）]/giu, '')
+          .replace(/[（(][^()（）]*[，,]\s*[1MN]\s*:\s*[1MN][^()（）]*[)）]\s*$/giu, '')
+          .replace(/(个人信息表|信息表|关系表|数据表|表结构|表)$/u, '')
+          .trim();
+        return normalized || text;
+      }
+
+      function formatTableTitle(name, description) {
+        return `<span class="tbl-desc">${normalizeTableDescriptionLabel(description)}</span><span class="tbl-name">${name || ''}</span>表结构`;
+      }
+
+      function formatConstraintForDisplay(constraint) {
+        const raw = String(constraint || '').trim();
+        const upper = raw.toUpperCase();
+        if (upper.includes('NOT NULL') || raw === '不允许为空') return '不允许为空';
+        return '';
+      }
+
+      function renderSampleDataTable(table) {
+        const columns = table.columns || [];
+        const rows = table.sample_rows || [];
+        if (!columns.length || !rows.length) return '';
+        const sampleMask = table.sample_mask || null;
+
+        let html = `<div class="sample-data-block mb-4" data-table-name="${table.name}"><div class="mt-2 mb-1 fw-semibold sample-data-title">${table.name}表数据</div>`;
+        html += '<table class="table table-bordered table-sm mb-0 sample-data-table" style="font-size:0.9em;"><thead><tr class="table-light">';
+        columns.forEach(col => {
+          html += `<th>${col.name}</th>`;
+        });
+        html += '</tr></thead><tbody>';
+
+        rows.forEach((row, rowIndex) => {
+          html += '<tr>';
+          columns.forEach(col => {
+            const rawValue = row[col.name] || '';
+            if (sampleMask && rowIndex === sampleMask.row_index && col.name === sampleMask.column_name) {
+              html += `<td><span class="q3-blank" style="border-bottom: 2px solid #555; padding: 0 10px; display:inline-block; min-width:60px;">&nbsp;</span><span class="q3-answer text-danger fw-bold d-none">${sampleMask.answer || rawValue}</span></td>`;
+            } else {
+              html += `<td>${rawValue}</td>`;
+            }
+          });
+          html += '</tr>';
+        });
+
+        html += '</tbody></table></div>';
+        return html;
+      }
+
+      // 辅助函数：从HTML反向解析数据
+      function scrapePaperData() {
+        if (!generatedPaperData) return null;
+        
+        const newData = JSON.parse(JSON.stringify(generatedPaperData));
+
+        const mainTitleEl = document.getElementById('paper-main-title');
+        if (mainTitleEl) newData.main_title = mainTitleEl.innerText;
+        
+        // 1. Background Text
+        const bgEl = document.getElementById('paper-background');
+        if (bgEl) newData.background_text = bgEl.innerText;
+
+        // NEW: Question Texts & Answers
+        const q1Text = document.getElementById('q1-text');
+        const q1Num = document.getElementById('q1-num');
+        if (q1Text && q1Num) newData.q1_text = q1Num.innerText + ' ' + q1Text.innerText;
+        
+        const q1Ans = document.getElementById('q1-answer');
+        if (q1Ans) newData.q1_answer = q1Ans.innerText;
+        
+        const q2Text = document.getElementById('q2-text');
+        const q2Num = document.getElementById('q2-num');
+        if (q2Text && q2Num) newData.q2_text = q2Num.innerText + ' ' + q2Text.innerText;
+        
+        const q3Intro = document.getElementById('q3-intro');
+        if (q3Intro) newData.q3_intro = q3Intro.innerText;
+        
+        const q3Sub1 = document.getElementById('q3-sub1-text');
+        if (q3Sub1) newData.q3_sub1 = q3Sub1.innerText;
+        
+        const q3Sub2 = document.getElementById('q3-sub2-text');
+        if (q3Sub2) newData.q3_sub2 = q3Sub2.innerText;
+
+        const erCap = document.getElementById('er-caption');
+        if (erCap) newData.er_caption = erCap.innerText;
+        
+        // 2. Answers (Q2)
+        const ansA = document.getElementById('ans-A');
+        const ansB = document.getElementById('ans-B');
+        const ansC = document.getElementById('ans-C');
+        if (!newData.answers) newData.answers = {};
+        if (ansA) newData.answers.A = ansA.innerText;
+        if (ansB) newData.answers.B = ansB.innerText;
+        if (ansC) newData.answers.C = ansC.innerText;
+        
+        // 3. Physical Design Data - RECONSTRUCT FROM DOM
+        if (!newData.physical_design_data) newData.physical_design_data = {};
+        const pd = newData.physical_design_data;
+        
+        // 3.1 Reconstruct Tables
+        pd.tables = [];
+        const tableBlocks = document.querySelectorAll('.table-block-item');
+        tableBlocks.forEach(block => {
+            const nameSpan = block.querySelector('.tbl-name');
+            const descSpan = block.querySelector('.tbl-desc');
+            // Fallback if spans deleted: minimal parsing or defaults
+            const tableName = nameSpan ? nameSpan.innerText : 'Unknown';
+            const tableDesc = descSpan ? descSpan.innerText : '';
+            
+            const tableObj = {
+                name: tableName,
+                description: tableDesc,
+              columns: [],
+              sample_rows: [],
+              sample_mask: null
+            };
+            
+            const rows = block.querySelectorAll('tbody tr');
+            rows.forEach(row => {
+                const cols = row.querySelectorAll('td');
+                if (cols.length >= 4) {
+                    const colObj = {
+                        name: cols[0].innerText,
+                        desc: cols[1].innerText,
+                        type: '',
+                        constraint: '', // 'NULL', 'NOT NULL', 'PRIMARY KEY'
+                        masked_field: null
+                    };
+                    
+                    const getCellData = (cell, fieldName) => {
+                        const ansSpan = cell.querySelector('.q3-answer');
+                        if (ansSpan) {
+                            colObj.masked_field = fieldName;
+                            return ansSpan.innerText.trim();
+                        }
+                        // Check if it was ever masked? Hard to tell if scraping from scratch.
+                        // But if we are in edit mode, class might be different.
+                        // Just take innerText.
+                        return cell.innerText.trim();
+                    };
+                    
+                    colObj.type = normalizeDataType(getCellData(cols[2], 'type'));
+                    let rawConstraint = getCellData(cols[3], 'constraint');
+                    
+                    // Map display text back to DB constraint
+                    if (rawConstraint === '主键') colObj.constraint = 'PRIMARY KEY';
+                    else if (rawConstraint === '不允许为空') colObj.constraint = 'NOT NULL';
+                    else if (rawConstraint === '' || rawConstraint === 'NULL') colObj.constraint = 'NULL';
+                    else colObj.constraint = rawConstraint;
+
+                    tableObj.columns.push(colObj);
+                }
+            });
+                const sampleBlock = document.querySelector(`.sample-data-block[data-table-name="${tableName}"]`);
+                const sampleTable = sampleBlock ? sampleBlock.querySelector('.sample-data-table') : null;
+                if (sampleTable && tableObj.columns.length > 0) {
+                  const sampleRows = sampleTable.querySelectorAll('tbody tr');
+                  sampleRows.forEach((sampleRow, rowIndex) => {
+                    const rowObj = {};
+                    const cells = sampleRow.querySelectorAll('td');
+                    tableObj.columns.forEach((column, columnIdx) => {
+                      const cell = cells[columnIdx];
+                      if (!cell) {
+                        rowObj[column.name] = '';
+                        return;
+                      }
+                      const ansSpan = cell.querySelector('.q3-answer');
+                      if (ansSpan) {
+                        const answer = ansSpan.innerText.trim();
+                        rowObj[column.name] = answer;
+                        tableObj.sample_mask = {
+                          row_index: rowIndex,
+                          column_name: column.name,
+                          answer
+                        };
+                        return;
+                      }
+                      rowObj[column.name] = cell.innerText.trim();
+                    });
+                    tableObj.sample_rows.push(rowObj);
+                  });
+                }
+
+            pd.tables.push(tableObj);
+        });
+            
+        // 3.2 Reconstruct Relation Questions
+        pd.relation_questions = [];
+        const rqItems = document.querySelectorAll('.rq-item');
+        rqItems.forEach((item, idx) => {
+             // 1) ) TableName: Mode string
+             // We need to parse: "1) Users表: Users(id, name, ...)"
+             // The structure is inside #rel-mode-{idx}
+             // But idx might change if items deleted. Rely on class structure.
+             
+             // Find the mode div
+             let modeDiv = item.querySelector('div[id^="rel-mode-"]');
+             if (!modeDiv) modeDiv = item.children[0]; // Fallback
+             
+             let table_name = '';
+             let relation_mode = '';
+             
+             if (modeDiv) {
+                 // Text content might be "1) Users表: Users(...)"
+                 let text = modeDiv.innerText.replace(/^\d+[\)\.]\s*/, '').trim(); 
+                 // remove numbering "1) "
+                 
+                 // Split at "表:"
+                 if (text.includes('表:')) {
+                     const parts = text.split('表:');
+                     table_name = parts[0].trim();
+                     relation_mode = parts.slice(1).join('表:').trim();
+                 } else {
+                     relation_mode = text;
+                 }
+                 
+                 // If there's an answer span, ensure we capture its value properly
+                 // InnerText usually captures it, but let's be safe about structure
+                 // The backend expects "Users(id, name, ...)"
+             }
+             
+             let pk = '';
+             let fk = '';
+             
+             // Find PK/FK lines. They are in the second child div usually.
+             const linesDiv = item.children[1];
+             if (linesDiv) {
+                 // We can search for IDs or text
+                 const pkSpan = linesDiv.querySelector('[id^="rel-pk-"]');
+                 if (pkSpan) {
+                     const ans = pkSpan.querySelector('.q3-answer');
+                     pk = ans ? ans.innerText : pkSpan.innerText.replace(/_+/g,'').trim();
+                 }
+                 
+                 const fkSpan = linesDiv.querySelector('[id^="rel-fk-"]');
+                 if (fkSpan) {
+                     const ans = fkSpan.querySelector('.q3-answer');
+                     // FK might be "无" or empty
+                     if (ans) fk = ans.innerText;
+                     else fk = fkSpan.innerText.replace(/_+/g,'').trim();
+                 }
+             }
+
+             if (table_name || relation_mode) {
+                 pd.relation_questions.push({
+                     table_name,
+                     relation_mode,
+                     pk,
+                     fk
+                 });
+             }
+        });
+            
+        // 3.3 Design Questions
+        const dqItems = document.querySelectorAll('#dq-container .dq-item');
+        if (dqItems.length > 0) {
+             pd.design_questions = [];
+             dqItems.forEach(el => {
+                 const clone = el.cloneNode(true);
+                 const btns = clone.querySelectorAll('button');
+                 btns.forEach(b => b.remove());
+                 
+                 const ansSpan = clone.querySelector('.q3-answer');
+                 let ans = '';
+                 if (ansSpan) {
+                     ans = ansSpan.innerText;
+                     ansSpan.textContent = '______';
+                 }
+                 let qText = clone.innerText.trim();
+                 qText = qText.replace(/^\d+[.)）]\s*/, '');
+                 
+                 pd.design_questions.push({
+                     question: qText,
+                     answer: ans
+                 });
+             });
+        } else {
+             pd.design_questions = [];
+        }
+        
+        return newData;
+      }
+
+      // 下一步按钮 - 生成题干
+      nextStepBtn.addEventListener('click', async () => {
+        console.log('下一步按钮点击，开始生成题干');
+        
+        // 备份当前ER数据
+        originalERDataBackup = JSON.parse(JSON.stringify(currentERData));
+        
+        // 显示加载状态
+        questionStemContainer.classList.remove('d-none');
+        questionStemContent.innerHTML = `
+          <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">正在生成题干...</span>
+            </div>
+            <p class="mt-3">正在生成题干，请稍候...</p>
+          </div>
+        `;
+        
+        // 禁用/隐藏ER图操作按钮
+        editBtn.classList.add('d-none');
+        nextStepBtn.classList.add('d-none');
+        
+        try {
+          console.log('发送请求到 /generate-question-stem');
+          const response = await fetch('/generate-question-stem', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ er_data: currentERData })
+          });
+          
+          const data = await response.json();
+          console.log('生成题干返回：', data);
+          if (!response.ok || !data.success) {
+            const msg = data && data.message ? data.message : '生成题干失败';
+            questionStemContent.innerHTML = `
+              <div class="alert alert-danger">
+                <strong>生成失败：</strong>${msg}
+              </div>
+            `;
+            // 恢复按钮状态
+            editBtn.classList.remove('d-none');
+            nextStepBtn.classList.remove('d-none');
+            return;
+          }
+          
+          // 更新ER图为挖空版本
+          if (data.masked_er_data) {
+             currentERData = data.masked_er_data;
+             drawERDiagram(currentERData);
+             displayERDiagram(currentERData);
+          }
+          
+          // 生成试卷格式的预览并支持导出为 docx
+          let answersHtml = '';
+          if (data.answers) {
+             answersHtml = `
+               <hr>
+               <button class="btn btn-sm btn-outline-info mb-2" type="button" data-bs-toggle="collapse" data-bs-target="#answerKey" aria-expanded="false" aria-controls="answerKey">
+                 显示参考答案
+               </button>
+               <div class="collapse" id="answerKey">
+                 <div class="card card-body bg-light">
+                   <h6>参考答案：</h6>
+                   <p class="mb-1"><strong>A:</strong> ${data.answers.A || ''}</p>
+                   <p class="mb-1"><strong>B:</strong> ${data.answers.B || ''}</p>
+                   <p class="mb-1"><strong>C:</strong> ${data.answers.C || ''}</p>
+                 </div>
+               </div>
+             `;
+          }
+
+          // 从 canvas 获取图片数据用于预览和导出
+          let imgData = '';
+          try {
+            imgData = canvas.toDataURL('image/png');
+          } catch (e) {
+            console.warn('获取 E-R 图图片失败：', e);
+          }
+
+          // 构造试卷格式 HTML
+          let q3Html = '';
+          const pdData = data.physical_design_data;
+          
+          if (pdData) {
+              q3Html += '<div class="mb-3" id="q3-intro"><strong>3.</strong> 根据E-R图，完成以下数据库物理设计任务：</div>';
+              
+              // 1. Tables (Enhanced layout for editing)
+              q3Html += '<div id="tables-container">';
+              if (pdData.tables && pdData.tables.length > 0) {
+                  pdData.tables.forEach((table, tIdx) => {
+                      q3Html += `<div class="table-block-item mb-4" data-idx="${tIdx}">`;
+                    q3Html += `<div class="mb-1 fw-bold table-title">${formatTableTitle(table.name, table.description)}</div>`;
+                      q3Html += `<table class="table table-bordered table-sm mb-0 editable-table" style="font-size:0.9em;"><thead><tr class="table-light"><th>字段名</th><th>字段描述</th><th>数据类型</th><th>属性限制</th></tr></thead><tbody>`;
+                      table.columns.forEach(col => {
+                          const normalizedType = normalizeDataType(col.type);
+                          const typeText = col.masked_field === 'type' ? `<span class="q3-blank" style="border-bottom: 2px solid #555; padding: 0 10px; display:inline-block; min-width:60px;">&nbsp;</span><span class="q3-answer text-danger fw-bold d-none">${normalizedType}</span>` : normalizedType;
+                      const displayConstraint = formatConstraintForDisplay(col.constraint);
+                          
+                          const constraintText = col.masked_field === 'constraint' ? `<span class="q3-blank" style="border-bottom: 2px solid #555; padding: 0 10px; display:inline-block; min-width:60px;">&nbsp;</span><span class="q3-answer text-danger fw-bold d-none">${displayConstraint}</span>` : displayConstraint;
+                          q3Html += `<tr><td>${col.name}</td><td>${col.desc}</td><td>${typeText}</td><td>${constraintText}</td></tr>`;
+                      });
+                      q3Html += '</tbody></table>';
+                      q3Html += `</div>`;
+                  });
+
+                  q3Html += '<div class="sample-data-group mt-3">';
+                  pdData.tables.forEach(table => {
+                    q3Html += renderSampleDataTable(table);
+                  });
+                  q3Html += '</div>';
+              }
+              q3Html += '</div>'; // End Tables Container
+              
+              // 2. Relation Questions
+              q3Html += '<div class="mb-2" id="q3-sub1-text">(1) 完善下列关系模式（只列出主键和外键，以及缺失的属性）：</div>';
+              q3Html += '<div id="rq-container">'; // Start RQ Container
+              if (pdData.relation_questions) {
+                  pdData.relation_questions.forEach((rq, idx) => {
+                      // 提取括号内容作为答案 (简单处理)
+                      let fullRel = rq.relation_mode || '';
+                      let content = fullRel;
+                      // Try simple extract inside parens first
+                      if (fullRel.includes('(')) {
+                          content = fullRel.split('(', 2)[1].replace(/\)$/, '');
+                      }
+                      
+                      // Using a common class .rq-item for easy selection/editing later
+                      q3Html += `
+                        <div class="mb-3 rq-item" id="rq-item-${idx}">
+                            <div class="ms-3 mb-2" id="rel-mode-${idx}">
+                                ${idx+1}) ${rq.table_name}表: ${rq.table_name}(
+                                <span class="q3-blank" style="border-bottom: 2px solid #555; padding: 0 10px; display:inline-block; min-width:150px;">&nbsp;</span>
+                                <span class="q3-answer text-danger fw-bold d-none">${content}</span>
+                                )
+                            </div>
+                            <div class="ms-3 mb-3 small text-muted">
+                                &nbsp;&nbsp;&nbsp;&nbsp;主关键字：
+                                <span id="rel-pk-${idx}">
+                                    <span class="q3-blank" style="border-bottom: 2px solid #555; padding: 0 10px; display:inline-block; min-width:80px;">&nbsp;</span>
+                                    <span class="q3-answer text-danger fw-bold d-none">${rq.pk}</span>
+                                </span>
+                                &nbsp;&nbsp;&nbsp;&nbsp;外关键字：
+                                <span id="rel-fk-${idx}">
+                                    <span class="q3-blank" style="border-bottom: 2px solid #555; padding: 0 10px; display:inline-block; min-width:80px;">&nbsp;</span>
+                                    <span class="q3-answer text-danger fw-bold d-none">${rq.fk}</span>
+                                </span>
+                            </div>
+                        </div>
+                      `;
+                  });
+              }
+              q3Html += '</div>'; // End RQ Container
+              
+              // 3. Design Questions
+              q3Html += '<div class="mb-2 mt-3" id="q3-sub2-text">(2) 根据上述表结构设计，回答下列问题：</div>';
+              q3Html += '<div id="dq-container">'; // Start Container
+              if (pdData.design_questions) {
+                  pdData.design_questions.forEach((dq, idx) => {
+                       // 去除题目可能自带的序号
+                     let cleanQ = sanitizeGeneratedText(dq.question || '');
+                     const cleanAnswer = sanitizeGeneratedText(dq.answer || '');
+                       cleanQ = cleanQ.replace(/^\d+[.)）]\s*/, '');
+                       
+                     // 识别多种空位占位符，避免把占位圈或全角下划线残留到答案前
+                     cleanQ = cleanQ.replace(/_{4,}|＿{2,}|[○◯□▢]{1,}/g, `<span class="q3-blank" style="border-bottom: 2px solid #555; padding: 0 10px; display:inline-block; min-width:80px;">&nbsp;</span><span class="q3-answer text-danger fw-bold d-none">${cleanAnswer}</span>`);
+
+                       q3Html += `<div class="ms-3 mb-2 dq-item" id="dq-q-${idx}">${idx+1}) ${cleanQ}</div>`;
+                  });
+              }
+              q3Html += '</div>'; // End Container
+          } else {
+              q3Html = '<div class="mb-2"><strong>3.</strong> 暂时占位，后续会补充第三问</div>';
+          }
+
+          // Store data for editing
+          generatedPaperData = JSON.parse(JSON.stringify(data));
+          generatedPaperData.module_slug = moduleSlug;
+
+          questionStemContent.innerHTML = `
+            <div class="paper-preview p-4 border bg-white">
+              <h5 class="fw-bold mb-4" id="paper-main-title">(一) 信息系统设计（本题3小题，共20分）</h5>
+              <div id="paper-background" class="mb-3" style="white-space: pre-wrap; text-indent: 2em; line-height: 1.6;">${data.background_text || ''}</div>
+              <p class="mb-4 text-muted border-bottom pb-2">请完成以下系统分析和设计，将你的答案填写到相应题号下的空格中。</p>
+
+              <div class="mb-3">
+                <strong id="q1-num">1.</strong> 
+                <span id="q1-text">请问系统有哪几类用户？简述需要为各类用户设计哪些系统功能。</span>
+                <div id="q1-answer" class="mt-1 d-none text-danger fw-bold answer-area">
+                   简述功能，合理即可
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <strong id="q2-num">2.</strong> 
+                <span id="q2-text">某设计人员给出了该系统数据库概念设计的E-R图（图1），请补充缺失部分的A、B、C处所对应的联系、属性、联系类型，完成E-R图。</span>
+                <div class="mt-1 d-none text-danger fw-bold answer-area">
+                   A: <span id="ans-A">${data.answers.A || ''}</span>, 
+                   B: <span id="ans-B">${data.answers.B || ''}</span>, 
+                   C: <span id="ans-C">${data.answers.C || ''}</span>
+                </div>
+              </div>
+
+              <div class="text-center my-4">
+                <img src="${imgData}" style="max-width:90%; border:1px solid #dee2e6; border-radius:4px; padding:10px;" />
+                <div class="text-center text-muted mt-2 small" id="er-caption">图1 系统局部E-R图</div>
+              </div>
+
+              <div class="mb-3">
+                ${q3Html}
+              </div>
+
+              <div class="mt-4 d-flex gap-2 border-top pt-3">
+                <button class="btn btn-warning" id="edit-paper-btn">
+                  <i class="gd-pencil"></i> 编辑内容
+                </button>
+                <button class="btn btn-success" id="save-bank-btn">
+                  <i class="gd-check"></i> 保存至题库
+                </button>
+                <button class="btn btn-primary" id="export-docx-btn">
+                  <i class="gd-download"></i> 导出为 .docx
+                </button>
+                <button class="btn btn-outline-info" type="button" id="toggle-answer-btn">
+                  查看参考答案
+                </button>
+              </div>
+            </div>
+          `;
+          
+          // 绑定编辑事件
+          const editPaperBtn = document.getElementById('edit-paper-btn');
+          if (editPaperBtn) {
+             let isEditing = false;
+             const ensureTableRowDeleteCell = (row) => {
+               if (!row || row.querySelector('.del-tbl-row-btn')) return;
+               const actionCell = document.createElement('td');
+               actionCell.className = 'table-row-action-cell text-center align-middle';
+               actionCell.contentEditable = "false";
+               actionCell.style.width = '70px';
+
+               const delBtn = document.createElement('button');
+               delBtn.type = 'button';
+               delBtn.className = 'btn btn-sm btn-outline-danger del-tbl-row-btn';
+               delBtn.textContent = '删除行';
+               delBtn.contentEditable = "false";
+               delBtn.onclick = (e) => {
+                 e.stopPropagation();
+                 const tbody = row.parentElement;
+                 if (!tbody) return;
+                 if (tbody.querySelectorAll('tr').length <= 1) {
+                   alert('表格至少保留一行');
+                   return;
+                 }
+                 row.remove();
+               };
+
+               actionCell.appendChild(delBtn);
+               row.appendChild(actionCell);
+             };
+
+             const enableTableBlockEditing = (block) => {
+               if (!block) return;
+               const title = block.querySelector('.table-title');
+               if (title) {
+                 title.contentEditable = "true";
+                 title.classList.add('border', 'border-warning', 'rounded');
+                 if (!title.querySelector('.del-tbl-btn')) {
+                   const btn = document.createElement('button');
+                   btn.type = 'button';
+                   btn.className = 'btn btn-sm btn-outline-danger del-tbl-btn ms-2';
+                   btn.innerHTML = '&times;';
+                   btn.contentEditable = "false";
+                   btn.onclick = (e) => {
+                     e.stopPropagation();
+                     if (confirm('确定删除此表吗？')) block.remove();
+                   };
+                   title.appendChild(btn);
+                 }
+               }
+
+               const table = block.querySelector('.editable-table');
+               if (!table) return;
+
+               const headRow = table.querySelector('thead tr');
+               if (headRow && !headRow.querySelector('.table-row-action-head')) {
+                 const th = document.createElement('th');
+                 th.className = 'table-row-action-head text-center';
+                 th.textContent = '操作';
+                 headRow.appendChild(th);
+               }
+
+               table.querySelectorAll('tbody tr').forEach(row => {
+                 Array.from(row.children).slice(0, 4).forEach(td => {
+                   td.contentEditable = "true";
+                 });
+                 ensureTableRowDeleteCell(row);
+               });
+
+               if (!block.querySelector('.table-row-toolbar')) {
+                 const toolbar = document.createElement('div');
+                 toolbar.className = 'table-row-toolbar mt-2';
+
+                 const addRowBtn = document.createElement('button');
+                 addRowBtn.type = 'button';
+                 addRowBtn.className = 'btn btn-sm btn-outline-success add-tbl-row-btn';
+                 addRowBtn.innerHTML = '<i class="gd-plus"></i> 新增行';
+                 addRowBtn.onclick = () => {
+                   const tbody = table.querySelector('tbody');
+                   if (!tbody) return;
+                   const row = document.createElement('tr');
+                   row.innerHTML = `
+                    <td contenteditable="true">new_field</td>
+                    <td contenteditable="true">字段描述</td>
+                            <td contenteditable="true">varchar(50)</td>
+                    <td contenteditable="true"></td>
+                   `;
+                   ensureTableRowDeleteCell(row);
+                   tbody.appendChild(row);
+                 };
+
+                 toolbar.appendChild(addRowBtn);
+                 block.appendChild(toolbar);
+               }
+             };
+
+             editPaperBtn.addEventListener('click', () => {
+                 isEditing = !isEditing;
+                 
+                 // Toggle logic
+                 const setEditable = (el, editable) => {
+                     if (!el) return;
+                     el.contentEditable = editable ? "true" : "false";
+                     if (editable) {
+                         el.classList.add('bg-light', 'border', 'border-warning', 'p-1', 'rounded');
+                     } else {
+                         el.classList.remove('bg-light', 'border', 'border-warning', 'p-1', 'rounded');
+                     }
+                 };
+
+                 if (isEditing) {
+                     editPaperBtn.innerHTML = '<i class="gd-check"></i> 保存修改';
+                     editPaperBtn.classList.replace('btn-warning', 'btn-success');
+                     
+                     // 1. Main Title
+                     const titleEl = document.querySelector('.paper-preview h5'); // Select the main title
+                     if (titleEl) {
+                         titleEl.id = 'paper-main-title'; // Ensure ID
+                         titleEl.classList.remove('text-center'); // Cancel centering
+                         setEditable(titleEl, true);
+                     }
+                     
+                     // 2. Background
+                     const bgEl = document.getElementById('paper-background');
+                     if(bgEl) { setEditable(bgEl, true); }
+                     
+                     // 3. Simple Text Fields
+                     ['ans-A', 'ans-B', 'ans-C', 'q1-text', 'q1-answer', 'q2-text', 'q3-intro', 'q3-sub1-text', 'q3-sub2-text', 'er-caption'].forEach(id => {
+                         const el = document.getElementById(id);
+                         setEditable(el, true);
+                     });
+                     
+                     // 4. Force show answers
+                     const toggleBtn = document.getElementById('toggle-answer-btn');
+                     if (toggleBtn && !toggleBtn.classList.contains('active')) {
+                         toggleBtn.click(); 
+                     }
+                     
+                     // 5. Tables Editing
+                     document.querySelectorAll('.table-block-item').forEach(enableTableBlockEditing);
+                     
+                     // Add "Add Table" Button
+                     const tablesContainer = document.getElementById('tables-container');
+                     if (tablesContainer && !document.getElementById('add-table-btn')) {
+                         const addBtn = document.createElement('button');
+                         addBtn.id = 'add-table-btn';
+                         addBtn.className = 'btn btn-sm btn-success mt-2 mb-3';
+                         addBtn.innerHTML = '<i class="gd-plus"></i> 添加表格';
+                         addBtn.onclick = () => {
+                             const newIdx = document.querySelectorAll('.table-block-item').length;
+                             const div = document.createElement('div');
+                             div.className = 'table-block-item mb-4';
+                             div.setAttribute('data-idx', newIdx);
+                             div.innerHTML = `
+                                <div class="mb-1 fw-bold table-title border border-warning rounded" contenteditable="true">
+                                    ${formatTableTitle('NewTable', 'Desc')}
+                                </div>
+                                <table class="table table-bordered table-sm mb-0 editable-table" style="font-size:0.9em;">
+                                <thead><tr class="table-light"><th>字段名</th><th>字段描述</th><th>数据类型</th><th>属性限制</th></tr></thead>
+                                    <tbody>
+                                  <tr><td contenteditable="true">id</td><td contenteditable="true">ID</td><td contenteditable="true">int</td><td contenteditable="true"></td></tr>
+                                  <tr><td contenteditable="true">name</td><td contenteditable="true">Name</td><td contenteditable="true">varchar(50)</td><td contenteditable="true"></td></tr>
+                                    </tbody>
+                                </table>
+                             `;
+                             tablesContainer.appendChild(div);
+                             enableTableBlockEditing(div);
+                         }
+                         tablesContainer.after(addBtn);
+                     }
+
+                     // 6. Relation Questions Editing
+                     document.querySelectorAll('.rq-item').forEach(item => {
+                         // Content editable
+                         item.querySelectorAll('div').forEach(d => d.contentEditable = "true");
+                         item.classList.add('border', 'border-warning', 'p-1', 'rounded');
+                         
+                         // Delete Button
+                         if (!item.querySelector('.del-rq-btn')) {
+                             const btn = document.createElement('button');
+                             btn.className = 'btn btn-sm btn-outline-danger del-rq-btn float-end';
+                             btn.innerHTML = '&times;';
+                             btn.contentEditable = "false";
+                             btn.onclick = (e) => {
+                                 e.stopPropagation();
+                                 if (confirm('确定删除此关系模式吗？')) item.remove();
+                             };
+                             item.insertBefore(btn, item.firstChild);
+                         }
+                     });
+                     
+                     // Add Questions Button
+                     const rqContainer = document.getElementById('rq-container');
+                     if (rqContainer && !document.getElementById('add-rq-btn')) {
+                         const addBtn = document.createElement('button');
+                         addBtn.id = 'add-rq-btn';
+                         addBtn.className = 'btn btn-sm btn-success mt-2 mb-3';
+                         addBtn.innerHTML = '<i class="gd-plus"></i> 添加关系模式题目';
+                         addBtn.onclick = () => {
+                             const idx = document.querySelectorAll('.rq-item').length + 1;
+                             const div = document.createElement('div');
+                             div.className = 'mb-3 rq-item border border-warning p-1 rounded';
+                             div.innerHTML = `
+                                <button class="btn btn-sm btn-outline-danger del-rq-btn float-end" contenteditable="false" onclick="this.closest('.rq-item').remove()">&times;</button>
+                                <div class="ms-3 mb-2" contenteditable="true">
+                                    ${idx}) NewTable表: NewTable(
+                                    <span class="q3-blank" style="border-bottom: 2px solid #555; padding: 0 10px; display:inline-block; min-width:150px;">&nbsp;</span>
+                                    <span class="q3-answer text-danger fw-bold d-inline-block px-1 bg-warning text-dark">col1, col2</span>
+                                    )
+                                </div>
+                                <div class="ms-3 mb-3 small text-muted" contenteditable="true">
+                                    &nbsp;&nbsp;&nbsp;&nbsp;主关键字：
+                                    <span>
+                                        <span class="q3-answer text-danger fw-bold d-inline-block px-1 bg-warning text-dark">col1</span>
+                                    </span>
+                                    &nbsp;&nbsp;&nbsp;&nbsp;外关键字：
+                                    <span>
+                                        <span class="q3-answer text-danger fw-bold d-inline-block px-1 bg-warning text-dark">无</span>
+                                    </span>
+                                </div>
+                             `;
+                             rqContainer.appendChild(div);
+                         };
+                         rqContainer.after(addBtn);
+                     }
+
+                     // 7. Design Questions (Existing Logic)
+                     const dqContainer = document.getElementById('dq-container');
+                     if (dqContainer) {
+                         // ... Existing add/delete logic ... 
+                         // To avoid duplicate code, I'll inline a simple version or reuse carefuly
+                         // Since I am replacing the whole block, I must implement it fully here.
+                         
+                         const dqItems = dqContainer.querySelectorAll('.dq-item');
+                         dqItems.forEach(it => {
+                             it.contentEditable = "true";
+                             it.classList.add('border', 'border-warning', 'p-1', 'rounded', 'position-relative');
+                             if (!it.querySelector('.del-dq-btn')) {
+                                 const btn = document.createElement('span');
+                                 btn.className = 'btn btn-sm btn-outline-danger ms-2 del-dq-btn pointer';
+                                 btn.innerHTML = '&times;';
+                                 btn.contentEditable = "false";
+                                 btn.onclick = (e) => { e.stopPropagation(); if(confirm('Del?')) it.remove(); };
+                                 it.appendChild(btn);
+                             }
+                         });
+                         
+                         if (!document.getElementById('add-dq-btn')) {
+                             const addBtn = document.createElement('button');
+                             addBtn.id = 'add-dq-btn';
+                             addBtn.className = 'btn btn-sm btn-success mt-2 d-block';
+                             addBtn.innerHTML = '<i class="gd-plus"></i> 添加小问';
+                             addBtn.onclick = () => {
+                                 const div = document.createElement('div');
+                                 div.className = 'ms-3 mb-2 dq-item border border-warning p-1 rounded position-relative';
+                                 div.contentEditable = "true";
+                                 div.innerHTML = `New Question <span class="q3-answer text-danger fw-bold bg-warning text-dark px-1 d-inline-block">Answer</span><span class="btn btn-sm btn-outline-danger ms-2 del-dq-btn pointer" contenteditable="false" onclick="this.parentNode.remove()">&times;</span>`;
+                                 dqContainer.insertBefore(div, addBtn);
+                             };
+                             dqContainer.appendChild(addBtn);
+                         }
+                     }
+
+                 } else {
+                     // === SAVE LOGIC ===
+                     
+                     // Scrape first before removing UI elements (except buttons)
+                     // But wait, scrape logic expects buttons to be gone or ignored?
+                     // My scrape logic looks at innerText/Structure.
+                     // Buttons have contentEditable=false but innerText might capture them if not careful.
+                     // It is safer to remove UI helpers FIRST, then scrape.
+                     
+                     // Remove Buttons
+                     document.querySelectorAll('.del-tbl-btn, #add-table-btn, .del-rq-btn, #add-rq-btn, .del-dq-btn, #add-dq-btn, .add-tbl-row-btn, .del-tbl-row-btn').forEach(el => el.remove());
+                     document.querySelectorAll('.table-row-toolbar').forEach(el => el.remove());
+                     document.querySelectorAll('.table-row-action-head, .table-row-action-cell').forEach(el => el.remove());
+                     
+                     // Restore Title
+                     const titleEl = document.getElementById('paper-main-title');
+                     if (titleEl) {
+                         // We keep it left aligned (removed text-center) as requested: "Cancel the centering"
+                         setEditable(titleEl, false);
+                     }
+                     
+                     // Restore others
+                     const bgEl = document.getElementById('paper-background');
+                     if(bgEl) { setEditable(bgEl, false); }
+                     
+                     ['ans-A', 'ans-B', 'ans-C', 'q1-text', 'q1-answer', 'q2-text', 'q3-intro', 'q3-sub1-text', 'q3-sub2-text', 'er-caption'].forEach(id => {
+                         const el = document.getElementById(id);
+                         setEditable(el, false);
+                     });
+                     
+                     // Tables
+                     document.querySelectorAll('.editable-table td').forEach(td => td.contentEditable = "false");
+                     document.querySelectorAll('.table-title').forEach(t => {
+                         t.contentEditable = "false";
+                         t.classList.remove('border', 'border-warning', 'rounded');
+                     });
+                     
+                     // RQs
+                     document.querySelectorAll('.rq-item').forEach(item => {
+                         item.querySelectorAll('div').forEach(d => d.contentEditable = "false");
+                         item.classList.remove('border', 'border-warning', 'p-1', 'rounded');
+                     });
+                     
+                     // DQs
+                     const dqContainer = document.getElementById('dq-container');
+                     if (dqContainer) {
+                         dqContainer.querySelectorAll('.dq-item').forEach(it => {
+                             it.contentEditable = "false";
+                             it.classList.remove('border', 'border-warning', 'p-1', 'rounded', 'position-relative');
+                             // Clean artifacts if any
+                         });
+                     }
+                     
+                     // NOW Scrape
+                     generatedPaperData = scrapePaperData(); 
+                     
+                     editPaperBtn.innerHTML = '<i class="gd-pencil"></i> 编辑内容';
+                     editPaperBtn.classList.replace('btn-success', 'btn-warning');
+                 }
+             });
+          }
+
+          // 绑定查看答案事件
+          const toggleBtn = document.getElementById('toggle-answer-btn');
+          if (toggleBtn) {
+              toggleBtn.addEventListener('click', () => {
+                  const isShowing = toggleBtn.classList.contains('active');
+                  
+                  // 切换 Q1, Q2 的答案区域显示
+                  const ansAreas = document.querySelectorAll('.answer-area');
+                  ansAreas.forEach(el => {
+                      if (!isShowing) el.classList.remove('d-none');
+                      else el.classList.add('d-none');
+                  });
+
+                  // 切换 Q3 的填空高亮
+                  const blanks = document.querySelectorAll('.q3-blank');
+                  const answers = document.querySelectorAll('.q3-answer');
+                  
+                  if (!isShowing) {
+                      // 显示答案
+                      blanks.forEach(el => el.classList.add('d-none'));
+                      answers.forEach(el => el.classList.remove('d-none'));
+                      toggleBtn.textContent = '隐藏参考答案';
+                      toggleBtn.classList.add('active');
+                  } else {
+                      // 隐藏答案
+                      blanks.forEach(el => el.classList.remove('d-none'));
+                      answers.forEach(el => el.classList.add('d-none'));
+                      toggleBtn.textContent = '查看参考答案';
+                      toggleBtn.classList.remove('active');
+                  }
+              });
+          }
+
+          // 导出为 docx 的处理
+          const exportBtn = document.getElementById('export-docx-btn');
+          const saveBankBtn = document.getElementById('save-bank-btn');
+
+          if (saveBankBtn) {
+            saveBankBtn.addEventListener('click', async () => {
+              saveBankBtn.disabled = true;
+              const originalText = saveBankBtn.innerHTML;
+              saveBankBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 保存中...';
+
+              try {
+                generatedPaperData = scrapePaperData();
+
+                const payload = {
+                  module_slug: moduleSlug,
+                  main_title: generatedPaperData.main_title || document.getElementById('paper-main-title')?.innerText || '(一) 信息系统设计（本题3小题，共20分）',
+                  background_text: generatedPaperData.background_text || '',
+                  q1_text: generatedPaperData.q1_text,
+                  q1_answer: generatedPaperData.q1_answer,
+                  q2_text: generatedPaperData.q2_text,
+                  er_caption: generatedPaperData.er_caption,
+                  q3_intro: generatedPaperData.q3_intro,
+                  q3_sub1: generatedPaperData.q3_sub1,
+                  q3_sub2: generatedPaperData.q3_sub2,
+                  question_stem: generatedPaperData.question_stem || '',
+                  answers: generatedPaperData.answers || {},
+                  er_image: imgData,
+                  masked_er_data: generatedPaperData.masked_er_data || {},
+                  physical_design_data: generatedPaperData.physical_design_data || {}
+                };
+
+                const resp = await fetch('/api/question-bank/short-answer', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(payload)
+                });
+                const res = await resp.json();
+
+                if (resp.ok && res.success) {
+                  saveBankBtn.innerHTML = '<i class="gd-check"></i> 已保存';
+                  alert(`已保存至题库，题目 ID：${res.id}`);
+                } else {
+                  alert(res.message || '保存失败');
+                }
+              } catch (err) {
+                console.error('保存至题库异常：', err);
+                alert('保存失败：' + err.message);
+              } finally {
+                if (!saveBankBtn.innerHTML.includes('已保存')) {
+                  saveBankBtn.disabled = false;
+                  saveBankBtn.innerHTML = originalText;
+                }
+              }
+            });
+          }
+
+          if (exportBtn) {
+            exportBtn.addEventListener('click', async () => {
+              exportBtn.disabled = true;
+              const originalText = exportBtn.innerHTML;
+              exportBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 导出中...';
+              
+              try {
+                // Ensure data is up to date
+                generatedPaperData = scrapePaperData();
+                
+                // Determine if answers are currently shown
+                const toggleBtn = document.getElementById('toggle-answer-btn');
+                const isShowAnswer = toggleBtn ? toggleBtn.classList.contains('active') : false;
+
+                const payload = {
+                  main_title: generatedPaperData.main_title || document.getElementById('paper-main-title')?.innerText || '(一) 信息系统设计（本题3小题，共20分）',
+                  background_text: generatedPaperData.background_text || '',
+                  // Pass new fields
+                  q1_text: generatedPaperData.q1_text,
+                  q1_answer: generatedPaperData.q1_answer,
+                  q2_text: generatedPaperData.q2_text,
+                  er_caption: generatedPaperData.er_caption,
+                  q3_intro: generatedPaperData.q3_intro,
+                  q3_sub1: generatedPaperData.q3_sub1,
+                  q3_sub2: generatedPaperData.q3_sub2,
+
+                  question_text: generatedPaperData.question_stem || '',
+                  answers: generatedPaperData.answers || {},
+                  er_image: imgData,
+                  physical_design_data: generatedPaperData.physical_design_data,
+                  show_answer: isShowAnswer
+                };
+
+                const resp = await fetch('/export-question-docx', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(payload)
+                });
+
+                const res = await resp.json();
+                if (resp.ok && res.success) {
+                  // 通过返回的 file_url 触发下载
+                  const a = document.createElement('a');
+                  a.href = res.file_url;
+                  a.target = '_blank';
+                  document.body.appendChild(a);
+                  a.click();
+                  a.remove();
+                } else {
+                  const msg = res && res.message ? res.message : '导出失败';
+                  alert(msg);
+                }
+              } catch (err) {
+                console.error('导出异常：', err);
+                alert('导出出错：' + err.message);
+              } finally {
+                exportBtn.disabled = false;
+                exportBtn.innerHTML = originalText;
+              }
+            });
+          }
+
+          // 滚动到题干区域
+          questionStemContainer.scrollIntoView({ behavior: 'smooth' });
+
+        } catch (error) {
+          console.error('生成题干异常：', error);
+          questionStemContent.innerHTML = `
+            <div class="alert alert-danger">
+              <strong>生成失败：</strong>${error.message}
+            </div>
+          `;
+          // 恢复按钮状态
+          editBtn.classList.remove('d-none');
+          nextStepBtn.classList.remove('d-none');
+        }
+      });
+
+      // 返回上一步按钮
+      backBtn.addEventListener('click', () => {
+        questionStemContainer.classList.add('d-none');
+        // 恢复原始ER图数据
+        if (originalERDataBackup) {
+          currentERData = originalERDataBackup;
+          drawERDiagram(currentERData);
+          displayERDiagram(currentERData);
+          originalERDataBackup = null;
+        }
+        // 恢复按钮显示
+        editBtn.classList.remove('d-none');
+        nextStepBtn.classList.remove('d-none');
+        // erContainer始终显示，不需要remove class
+        erContainer.scrollIntoView({ behavior: 'smooth' });
+      });
+    });
+  </script>
+</body>
+</html>
